@@ -28,7 +28,10 @@ from services.app_config import (
 
 router = APIRouter()
 
-_ENV_PATH = Path(os.environ.get("HIGASHI_ENV_PATH", Path(__file__).parent.parent / ".env"))
+# Same file the settings loader reads; see config.env_file_path().
+def _env_path() -> str:
+    from config import env_file_path
+    return env_file_path()
 
 
 def dotenv_set_key(path: str, key: str, value: str):
@@ -77,7 +80,7 @@ async def save_ai_key(body: AIKeyRequest, _=Depends(require_admin)):
 
     # Persist to .env
     try:
-        dotenv_set_key(str(_ENV_PATH), "ANTHROPIC_API_KEY", key)
+        dotenv_set_key(_env_path(), "ANTHROPIC_API_KEY", key)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
 
@@ -90,7 +93,7 @@ async def save_ai_key(body: AIKeyRequest, _=Depends(require_admin)):
 @router.delete("/settings/ai")
 async def remove_ai_key(_=Depends(require_admin)):
     try:
-        dotenv_set_key(str(_ENV_PATH), "ANTHROPIC_API_KEY", "")
+        dotenv_set_key(_env_path(), "ANTHROPIC_API_KEY", "")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()
@@ -140,7 +143,7 @@ async def save_provider_key(body: AIProviderKeyRequest, _=Depends(require_admin)
         raise HTTPException(status_code=400, detail="Unknown provider")
     key = body.api_key.strip()
     try:
-        dotenv_set_key(str(_ENV_PATH), provider_env[body.provider], key)
+        dotenv_set_key(_env_path(), provider_env[body.provider], key)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()
@@ -153,7 +156,7 @@ async def remove_provider_key(provider: str, _=Depends(require_admin)):
     if provider not in provider_env:
         raise HTTPException(status_code=400, detail="Unknown provider")
     try:
-        dotenv_set_key(str(_ENV_PATH), provider_env[provider], "")
+        dotenv_set_key(_env_path(), provider_env[provider], "")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()
@@ -204,8 +207,8 @@ async def save_ai_budget(body: AIBudgetRequest, _=Depends(require_admin)):
     if body.default_model not in MODEL_CATALOG:
         raise HTTPException(status_code=400, detail="Unknown model ID")
     try:
-        dotenv_set_key(str(_ENV_PATH), "AI_MONTHLY_BUDGET_USD", str(body.monthly_budget_usd))
-        dotenv_set_key(str(_ENV_PATH), "AI_DEFAULT_MODEL", body.default_model)
+        dotenv_set_key(_env_path(), "AI_MONTHLY_BUDGET_USD", str(body.monthly_budget_usd))
+        dotenv_set_key(_env_path(), "AI_DEFAULT_MODEL", body.default_model)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()
@@ -246,11 +249,11 @@ async def save_live_settings(body: LiveSettingsRequest, _=Depends(require_admin)
         raise HTTPException(status_code=400, detail="Unknown ai_stance")
     try:
         if key:
-            dotenv_set_key(str(_ENV_PATH), "LIVE_KEY", key)
+            dotenv_set_key(_env_path(), "LIVE_KEY", key)
         if body.live_url.strip():
-            dotenv_set_key(str(_ENV_PATH), "LIVE_URL", body.live_url.strip())
-        dotenv_set_key(str(_ENV_PATH), "LIVE_SITE_TYPE", body.site_type)
-        dotenv_set_key(str(_ENV_PATH), "LIVE_AI_STANCE", body.ai_stance)
+            dotenv_set_key(_env_path(), "LIVE_URL", body.live_url.strip())
+        dotenv_set_key(_env_path(), "LIVE_SITE_TYPE", body.site_type)
+        dotenv_set_key(_env_path(), "LIVE_AI_STANCE", body.ai_stance)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()
@@ -260,7 +263,7 @@ async def save_live_settings(body: LiveSettingsRequest, _=Depends(require_admin)
 @router.delete("/settings/live")
 async def remove_live_settings(_=Depends(require_admin)):
     try:
-        dotenv_set_key(str(_ENV_PATH), "LIVE_KEY", "")
+        dotenv_set_key(_env_path(), "LIVE_KEY", "")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()

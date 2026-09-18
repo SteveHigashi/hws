@@ -41,6 +41,21 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 
+def env_file_path() -> str:
+    """The ONE settings file: what get_settings() reads and what the admin UI
+    and secret-key persistence write.
+
+    Before 2026-09-18 these disagreed. The loader always read ./.env while the
+    writers used HIGASHI_ENV_PATH, so on any install that set the variable
+    (the desktop launcher, passenger_wsgi, the cloudanalyst start.sh) a key
+    saved through the admin UI landed in a file the running process never
+    opened, and the UI reported it saved. Resolved here once, read everywhere.
+    """
+    import os
+    return os.environ.get("HIGASHI_ENV_PATH") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), ".env")
+
+
 DEFAULT_SECRET_KEY = "changeme_generate_a_real_key"
 
 
@@ -53,21 +68,19 @@ def _generated_secret_key() -> str:
     import os
     import secrets
     key = secrets.token_hex(32)
-    env_path = os.environ.get("HIGASHI_ENV_PATH")
-    if env_path:
-        try:
-            from dotenv import set_key
-            set_key(env_path, "SECRET_KEY", key)
-            os.chmod(env_path, 0o600)
-        except Exception:
-            pass  # still use the random key; logins just reset on restart
+    try:
+        from dotenv import set_key
+        set_key(env_file_path(), "SECRET_KEY", key)
+        os.chmod(env_file_path(), 0o600)
+    except Exception:
+        pass  # still use the random key; logins just reset on restart
     os.environ["SECRET_KEY"] = key
     return key
 
 
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
+    s = Settings(_env_file=env_file_path())
     if s.secret_key == DEFAULT_SECRET_KEY:
         s.secret_key = _generated_secret_key()
     return s
