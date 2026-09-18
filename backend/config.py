@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     sftp_password_stevenhigashi: str = ""
     sftp_path_stevenhigashi: str = ""
 
+    # viabandwidth.com lives on its own IONOS VPS (plain nginx, not Cloudways)
+    ssh_password_viabandwidth: str = ""
     live_key: str = ""
     live_url: str = "https://intel.cloudanalyst.net"
     live_site_type: str = "other"

@@ -9,3 +9,4 @@ from .geo_probe import GeoProbeQuery, GeoProbeResult  # must import to register 
 from .import_cursor import ImportCursor  # must import to register table
 from .app_setting import AppSetting  # must import to register table
 from .pull_profile import PullProfile  # must import to register table
+from .live_reading import LiveReading  # must import to register table with SQLAlchemy metadata

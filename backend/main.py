@@ -5,12 +5,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 from pathlib import Path
+import asyncio
+import shlex
+import tempfile
+import os
 
 from config import get_settings
 from database import init_db
 from routers import collect, analytics, auth, setup, intelligence, admin, behavior, ai_crawlers
 from routers import import_logs, geo_probes, sites, live_traffic, live
 from services.live_client import load_local_live_ranges
+from services.log_importer import import_log_file
 
 # Optional layer-2 feature. The composition root is the only core file aware of
 # it; removing its service/router/model files leaves the application bootable.
@@ -22,11 +27,59 @@ except ImportError:
 settings = get_settings()
 
 
+SYNC_INTERVAL = 300  # seconds
+
+async def _sync_logs():
+    try:
+        import asyncssh
+    except ImportError:
+        return
+    for server in import_logs.KNOWN_SERVERS:
+        if not server.get("log_path") or not server.get("host"):
+            continue
+        try:
+            connect_kwargs, _ = import_logs._build_connect_kwargs(
+                server["host"], server["port"], server["username"], server["password"], None
+            )
+            async with asyncssh.connect(**connect_kwargs) as conn:
+                fd, tmp_path = tempfile.mkstemp(suffix=".log")
+                os.close(fd)
+                try:
+                    async with conn.create_process(
+                        f"cat {shlex.quote(server['log_path'])}", encoding=None
+                    ) as proc:
+                        stdout, _ = await proc.communicate()
+                    with open(tmp_path, "wb") as f:
+                        f.write(stdout or b"")
+                    await import_log_file(
+                        filepath=tmp_path, domain=server["domain"],
+                        db_url=settings.database_url, log_path=server["log_path"],
+                    )
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+async def _sync_loop():
+    await asyncio.sleep(10)  # initial delay so DB is ready
+    while True:
+        await _sync_logs()
+        await asyncio.sleep(SYNC_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     load_local_live_ranges()
+    # Pulls each KNOWN_SERVERS access log over SSH every SYNC_INTERVAL and
+    # imports it. Lived only on the cloudanalyst install until 2026-09-18; it
+    # is what fills pageviews for sites whose browser beacon never arrives.
+    task = asyncio.create_task(_sync_loop())
     yield
+    task.cancel()
 
 
 app = FastAPI(

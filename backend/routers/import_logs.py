@@ -40,7 +40,9 @@ if settings.sftp_host:
             "username": settings.sftp_user_stevenhigashi,
             "password": settings.sftp_password_stevenhigashi,
             "domain": "stevenhigashi.com",
-            "log_path": "",
+            # Paths as configured on the cloudanalyst install; blank means
+            # manual import only, and _sync_loop skips the entry.
+            "log_path": "/home/example.hosting.invalid/site-one/logs/access.log",
         },
         {
             "label": "cloudanalyst.net",
@@ -49,7 +51,7 @@ if settings.sftp_host:
             "username": settings.sftp_user_cloudanalyst,
             "password": settings.sftp_password,
             "domain": "cloudanalyst.net",
-            "log_path": "",
+            "log_path": "/home/example.hosting.invalid/site-two/logs/access.log",
         },
     ]
 
