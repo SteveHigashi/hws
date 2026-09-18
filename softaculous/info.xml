@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<softaculous>
+  <overview>
+    <name>Higashi Analytics</name>
+    <version>0.3.0</version>
+    <category>Analytics</category>
+    <type>webapp</type>
+    <languages>en</languages>
+    <description>Self-hosted, privacy-first web analytics with built-in AI intelligence. Track visitors, detect bot traffic, monitor AI crawler activity, and ask your data questions in plain English — all on your own server with no third-party data sharing.</description>
+    <url>https://github.com/higashi-analytics/higashi-analytics</url>
+    <demo>https://demo.higashi.dev</demo>
+    <min_php_version>7.4</min_php_version>
+    <requirements>Python 3.9+</requirements>
+  </overview>
+
+  <admin>
+    <admin_dir></admin_dir>
+    <admin_url></admin_url>
+  </admin>
+
+  <db>
+    <db_required>false</db_required>
+  </db>
+
+  <files>
+    <download>https://github.com/higashi-analytics/higashi-analytics/archive/refs/heads/main.zip</download>
+    <ext>zip</ext>
+  </files>
+
+  <screenshots>
+    <screenshot>screenshots/dashboard.jpg</screenshot>
+    <screenshot>screenshots/geo-visibility.jpg</screenshot>
+    <screenshot>screenshots/ai-crawlers.jpg</screenshot>
+  </screenshots>
+</softaculous>

@@ -1,0 +1,14 @@
+Options -Indexes
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /analytics/
+
+  # Route /analytics/api/* through PHP proxy
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^api/(.*)$ api_proxy.php?path=/api/$1 [QSA,L]
+
+  # SPA fallback — non-asset requests serve index.html
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . index.html [L]
+</IfModule>
