@@ -427,12 +427,12 @@ async def suspicious_traffic(
             reason_counts[reason] += 1
     # Suspicious sessions are a small slice of the window (thousands, not hundreds of
     # thousands), so their events are read by session id in bounded chunks.
+    # Session id alone: the ids are already inside the window and site, and adding the
+    # window/site filters here made SQLite scan the whole site window per chunk
+    # (12-36 s) instead of the session index.
     for chunk in _chunks([sid for sid, _r in suspicious]):
-        event_conds = [Event.session_id.in_(chunk), Event.timestamp >= ctx["since"]]
-        if ctx["site_uuid"]:
-            event_conds.append(Event.site_id == ctx["site_uuid"])
         events = (await db.execute(
-            select(Event.page_url, Event.user_agent).where(*event_conds)
+            select(Event.page_url, Event.user_agent).where(Event.session_id.in_(chunk))
         )).all()
         for page_url, user_agent in events:
             path_counts[path_from_url(page_url)] += 1
