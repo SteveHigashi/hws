@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Routes, Route } from "react-router-dom";
 import Sidebar from "../components/layout/Sidebar";
 import StatCard from "../components/charts/StatCard";
+import StatTooltip from "../components/charts/StatTooltip";
 import TrafficChart from "../components/charts/TrafficChart";
 import InsightsFeed from "../components/charts/InsightsFeed";
 import RealtimeFeed from "../components/charts/RealtimeFeed";
@@ -144,7 +145,7 @@ function LiveNow() {
       <span className="w-2 h-2 rounded-full bg-green-400 pulse-dot shrink-0" />
       <span className="text-xs text-green-400 font-mono font-semibold">LIVE NOW</span>
       <span className="text-xs text-white font-semibold ml-1">
-        {count === null ? "—" : count}
+        <StatTooltip id="live_now" value={count} showIcon={false}>{count === null ? "—" : count}</StatTooltip>
       </span>
       <span className="text-xs text-slate-500">visitor{count !== 1 ? "s" : ""}</span>
     </div>
@@ -159,10 +160,10 @@ function TrafficQualityPanel({ data, loading }) {
     <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <p className="text-sm font-medium text-slate-300">Traffic Quality</p>
+          <p className="text-sm font-medium text-slate-300"><StatTooltip id="traffic_quality" value={data?.total_sessions}>Traffic Quality</StatTooltip></p>
           <p className="text-xs text-slate-500 mt-0.5">Log sessions split by human proof and noise signals</p>
         </div>
-        <span className="text-xs text-slate-500 shrink-0">{total.toLocaleString()} sessions</span>
+        <span className="text-xs text-slate-500 shrink-0"><StatTooltip id="traffic_quality" value={data?.total_sessions} showIcon={false}>{total.toLocaleString()} sessions</StatTooltip></span>
       </div>
       {loading ? (
         <p className="text-xs text-slate-500">Loading...</p>
@@ -176,7 +177,7 @@ function TrafficQualityPanel({ data, loading }) {
               <div key={row.class}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-slate-300">{row.label}</span>
-                  <span className="font-mono text-slate-400">{row.count.toLocaleString()} · {row.share}%</span>
+                  <span className="font-mono text-slate-400"><StatTooltip id={{ verified_human: "verified_humans", likely_human: "likely_humans", suspicious: "suspicious_sessions", unknown: "unknown_sessions" }[row.class]} value={row.count} showIcon={false}>{row.count.toLocaleString()} · {row.share}%</StatTooltip></span>
                 </div>
                 <div className="h-1.5 bg-surface-600 rounded-full overflow-hidden">
                   <div className={`h-full ${qualityBar(row.class)}`} style={{ width: `${Math.max(row.share, row.count ? 2 : 0)}%` }} />
@@ -199,10 +200,10 @@ function ScannerNoisePanel({ data, loading }) {
     <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
-          <p className="text-sm font-medium text-slate-300">Scanner Noise</p>
+          <p className="text-sm font-medium text-slate-300"><StatTooltip id="scanner_noise" value={data?.sessions}>Scanner Noise</StatTooltip></p>
           <p className="text-xs text-slate-500 mt-0.5">Security probes, fake-browser hits, and 404-only sessions</p>
         </div>
-        <span className="text-xs text-danger shrink-0">{(data?.sessions || 0).toLocaleString()} sessions</span>
+        <span className="text-xs text-danger shrink-0"><StatTooltip id="scanner_noise" value={data?.sessions} showIcon={false}>{(data?.sessions || 0).toLocaleString()} sessions</StatTooltip></span>
       </div>
       {loading ? (
         <p className="text-xs text-slate-500">Loading...</p>
@@ -215,7 +216,7 @@ function ScannerNoisePanel({ data, loading }) {
             {paths.slice(0, 5).map((p, i) => (
               <div key={i} className="flex items-center justify-between text-xs gap-3">
                 <span className="text-slate-300 font-mono truncate">{p.path}</span>
-                <span className="text-slate-500 shrink-0">{p.hits.toLocaleString()}</span>
+                <span className="text-slate-500 shrink-0"><StatTooltip id="scanner_path_hits" value={p.hits} showIcon={false}>{p.hits.toLocaleString()}</StatTooltip></span>
               </div>
             ))}
           </div>
@@ -224,7 +225,7 @@ function ScannerNoisePanel({ data, loading }) {
             {reasons.slice(0, 5).map((r, i) => (
               <div key={i} className="flex items-center justify-between text-xs gap-3">
                 <span className="text-slate-300 truncate">{r.reason}</span>
-                <span className="text-slate-500 shrink-0">{r.sessions.toLocaleString()}</span>
+                <span className="text-slate-500 shrink-0"><StatTooltip id="scanner_reason_sessions" value={r.sessions} showIcon={false}>{r.sessions.toLocaleString()}</StatTooltip></span>
               </div>
             ))}
           </div>
@@ -338,34 +339,46 @@ function Overview() {
 
       <WatchThisSite />
 
-      {/* Hero: THE real-visitor number, stated plainly — not hedged as an estimate */}
+      {/* Real traffic and its supporting numbers */}
       <div className="bg-surface-800 border border-surface-600 rounded-xl p-6 glow">
-        <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">This is your real traffic</p>
+        <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
+          <StatTooltip id="real_traffic" value={stats?.real_traffic_estimate}>This is your real traffic</StatTooltip>
+        </p>
         <p className="text-5xl font-bold text-accent-glow">
-          {stats?.real_traffic_estimate?.toLocaleString() ?? "—"}
+          <StatTooltip id="real_traffic" value={stats?.real_traffic_estimate} showIcon={false}>
+            {stats?.real_traffic_estimate?.toLocaleString() ?? "—"}
+          </StatTooltip>
         </p>
         <p className="text-sm text-slate-400 mt-2">
-          real visitors in the last {days} days &nbsp;&middot;&nbsp; average time spent: {formatDuration(stats?.avg_session_duration)}
+          real visitors in the last {days} days &nbsp;&middot;&nbsp; average time spent:{" "}
+          <StatTooltip id="avg_time_spent" value={stats?.avg_session_duration} showIcon={false}>
+            {formatDuration(stats?.avg_session_duration)}
+          </StatTooltip>
         </p>
         <p className="text-xs text-slate-600 mt-1">
-          {stats?.verified_humans?.toLocaleString() ?? "—"} verified + {stats?.likely_humans?.toLocaleString() ?? "—"} likely,
-          &nbsp;confidence: {stats?.traffic_confidence || "—"} &nbsp;&middot;&nbsp; {stats?.sessions?.toLocaleString() ?? "—"} raw sessions before filtering
+          <StatTooltip id="verified_humans" value={stats?.verified_humans} showIcon={false}>{stats?.verified_humans?.toLocaleString() ?? "—"} verified</StatTooltip>
+          {" + "}
+          <StatTooltip id="likely_humans" value={stats?.likely_humans} showIcon={false}>{stats?.likely_humans?.toLocaleString() ?? "—"} likely</StatTooltip>
+          {", confidence: "}
+          <StatTooltip id="traffic_confidence" value={stats?.traffic_confidence} showIcon={false}>{stats?.traffic_confidence || "—"}</StatTooltip>
+          {" · "}
+          <StatTooltip id="raw_sessions" value={stats?.sessions} showIcon={false}>{stats?.sessions?.toLocaleString() ?? "—"} raw sessions before filtering</StatTooltip>
         </p>
       </div>
 
       {/* Stat cards — row 1 */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Verified Humans" value={stats?.verified_humans?.toLocaleString()} accent />
-        <StatCard label="Likely Humans" value={stats?.likely_humans?.toLocaleString()} sub={stats?.has_js_proof ? "with proof mix" : "log estimate"} />
-        <StatCard label="Avg. Time Spent" value={formatDuration(stats?.avg_session_duration)} sub="per real session" />
-        <StatCard label="AI Crawlers" value={stats?.ai_crawlers?.toLocaleString()} sub="bot visits" />
+        <StatCard id="verified_humans" label="Verified Humans" value={stats?.verified_humans?.toLocaleString()} accent />
+        <StatCard id="likely_humans" label="Likely Humans" value={stats?.likely_humans?.toLocaleString()} sub={stats?.has_js_proof ? "with proof mix" : "log estimate"} />
+        <StatCard id="avg_time_spent" label="Avg. Time Spent" value={stats?.avg_session_duration == null ? null : formatDuration(stats.avg_session_duration)} sub="per real session" />
+        <StatCard id="ai_crawlers" label="AI Crawlers" value={stats?.ai_crawlers?.toLocaleString()} sub="bot visits" />
       </div>
       {/* Stat cards — row 2 */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Suspicious Sessions" value={stats?.suspicious_sessions?.toLocaleString()} sub="scanner/noise" />
-        <StatCard label="Known Bots" value={stats?.known_bots?.toLocaleString()} sub="non-AI bot visits" />
-        <StatCard label="Page Views" value={stats?.page_views?.toLocaleString()} />
-        <StatCard label="404 Errors" value={stats?.errors_404?.toLocaleString()} sub={stats?.errors_404 > 0 ? "triaged below" : "clean"} />
+        <StatCard id="suspicious_sessions" label="Suspicious Sessions" value={stats?.suspicious_sessions?.toLocaleString()} sub="scanner/noise" />
+        <StatCard id="known_bots" label="Known Bots" value={stats?.known_bots?.toLocaleString()} sub="non-AI bot visits" />
+        <StatCard id="page_views" label="Page Views" value={stats?.page_views?.toLocaleString()} />
+        <StatCard id="errors_404" label="404 Errors" value={stats?.errors_404?.toLocaleString()} sub={stats?.errors_404 > 0 ? "triaged below" : "clean"} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -391,8 +404,8 @@ function Overview() {
                 <div key={i} className="flex items-center justify-between text-sm">
                   <span className="text-slate-300 truncate max-w-[220px] font-mono text-xs">{p.page}</span>
                   <span className="flex items-center gap-3 shrink-0 ml-4">
-                    <span className="text-slate-400">{p.views.toLocaleString()} views</span>
-                    <span className="text-slate-500 text-xs">{formatDuration(p.avg_duration)}</span>
+                    <span className="text-slate-400"><StatTooltip id="top_page_views" value={p.views} showIcon={false}>{p.views.toLocaleString()} views</StatTooltip></span>
+                    <span className="text-slate-500 text-xs"><StatTooltip id="top_page_time" value={p.avg_duration} showIcon={false}>{formatDuration(p.avg_duration)}</StatTooltip></span>
                   </span>
                 </div>
               ))}
@@ -411,7 +424,7 @@ function Overview() {
                 <div key={i} className="flex items-center gap-2 text-sm">
                   <span className="shrink-0">{countryFlag(g.country) || "🌐"}</span>
                   <span className="text-slate-300">{g.country || "Unknown"}</span>
-                  <span className="text-slate-400 ml-auto">{g.visitors.toLocaleString()}</span>
+                  <span className="text-slate-400 ml-auto"><StatTooltip id="top_country_visitors" value={g.visitors} showIcon={false}>{g.visitors.toLocaleString()}</StatTooltip></span>
                 </div>
               ))}
             </div>
