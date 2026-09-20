@@ -46,7 +46,9 @@ export default function WatchThisSite() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.post("/live/watch");
+      // POSTs do not get site_id from the interceptor; without it the backend reports
+      // the first site in the table, whatever the page shows (found 2026-09-20).
+      const { data } = await api.post("/live/watch", null, { params: { site_id: currentSiteId } });
       setReading(data);
       setLabel("Higashi Live");
       setNote("");

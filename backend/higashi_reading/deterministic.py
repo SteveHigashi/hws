@@ -71,9 +71,9 @@ def headline(report: ReportIn) -> str:
 
 
 def robots_paragraph(report: ReportIn, product: str = "Higashi") -> str:
-    names = [c.name for c in report.crawlers if c.name.casefold() not in SEARCH_CRAWLERS]
+    names = [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS]
     if not names:
-        names = [c.name for c in report.crawlers]
+        names = _names(report.crawlers)
     lines = "\n".join(f"User-agent: {name}\nDisallow: /" for name in names) or "User-agent: *\nDisallow: /"
     ignorers = [name for name in names if name.casefold() in KNOWN_ROBOTS_IGNORERS]
     note = (
@@ -83,9 +83,19 @@ def robots_paragraph(report: ReportIn, product: str = "Higashi") -> str:
     return f"Paste this into robots.txt:\n{lines}\n{product} reports what arrived. It does not sit in front of your site.{note}"
 
 
+def _names(crawlers) -> list[str]:
+    """Crawler names once each, in first-seen order: verified and unverified hits of one
+    crawler arrive as separate entries and must not read as two crawlers."""
+    seen: list[str] = []
+    for c in crawlers:
+        if c.name not in seen:
+            seen.append(c.name)
+    return seen
+
+
 def no_comparison_notes(report: ReportIn) -> list[str]:
     """What a local reading says instead of benchmarks: it has no other sites to compare with."""
-    return [f"{c.name}: no comparison to other sites (that needs Higashi Live)." for c in report.crawlers]
+    return [f"{name}: no comparison to other sites (that needs Higashi Live)." for name in _names(report.crawlers)]
 
 
 def deterministic_reading(
@@ -110,17 +120,20 @@ def deterministic_reading(
         if geo:
             facts = [f"{g.engine} {'mentioned' if g.mentioned else 'did not mention'} you" + (" and cited you" if g.cited else "") for g in geo]
             paragraphs.append(". ".join(facts) + ".")
-        useful = [c.name for c in report.crawlers if c.verified == "verified"]
+        useful = _names(c for c in report.crawlers if c.verified == "verified")
         if useful:
             paragraphs.append(f"Verified crawlers that may help discovery: {', '.join(useful)}.")
     elif report.ai_stance == "block_all":
-        arrived = ", ".join(f"{c.name} ({c.hits:,} hits)" for c in report.crawlers) or "No AI crawlers"
+        hits: dict[str, int] = {}
+        for c in report.crawlers:
+            hits[c.name] = hits.get(c.name, 0) + c.hits
+        arrived = ", ".join(f"{name} ({n:,} hits)" for name, n in hits.items()) or "No AI crawlers"
         paragraphs.append(f"AI crawlers seen: {arrived}.")
         paragraphs.append(robots_paragraph(report, product))
         paragraphs.append(AI_SEARCH_CAVEAT)
     else:
-        search = [c.name for c in report.crawlers if c.name.casefold() in SEARCH_CRAWLERS]
-        training = [c.name for c in report.crawlers if c.name.casefold() not in SEARCH_CRAWLERS]
+        search = [n for n in _names(report.crawlers) if n.casefold() in SEARCH_CRAWLERS]
+        training = [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS]
         paragraphs.append(f"Search crawlers seen: {', '.join(search) or 'none'}. AI training crawlers to consider blocking: {', '.join(training) or 'none'}.")
 
     walk = report.walk.verdict

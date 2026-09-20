@@ -138,3 +138,15 @@ class RouterWiringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DedupeTests(unittest.TestCase):
+    def test_a_crawler_seen_verified_and_unverified_is_named_once(self):
+        report = dict(REPORT, ai_stance="search_only", crawlers=[
+            {"name": "Applebot", "verified": "verified", "hits": 10, "bytes": 1, "records_taken": 0},
+            {"name": "Applebot", "verified": "unverified", "hits": 5, "bytes": 1, "records_taken": 0},
+            {"name": "GPTBot", "verified": "verified", "hits": 3, "bytes": 1, "records_taken": 0},
+        ])
+        text = " ".join(walk_reading.local_reading(report).paragraphs)
+        self.assertEqual(text.count("Applebot"), 2)  # once in "search crawlers seen", once in the comparison note
+        self.assertNotIn("Applebot, Applebot", text)
