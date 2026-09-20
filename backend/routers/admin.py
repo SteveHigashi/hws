@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from higashi_reading.crawlers import LEGACY_TO_STANCE, STANCES, legacy_value
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 
@@ -224,6 +226,10 @@ class LiveSettingsRequest(BaseModel):
 
 _SITE_TYPES = {"business", "blog", "shop", "directory", "other"}
 _AI_STANCES = {"found", "search_only", "block_all"}
+_STANCE_OPTIONS = [
+    {"value": sid, "label": st["label"], "does": st["does"], "does_not": st["does_not"], "cost": st["cost"]}
+    for sid, st in STANCES.items()
+]
 
 
 @router.get("/settings/live")
@@ -234,6 +240,8 @@ async def get_live_settings(_=Depends(require_admin)):
         "live_url": settings.live_url,
         "site_type": settings.live_site_type,
         "ai_stance": settings.live_ai_stance,
+        "stance": settings.live_stance if settings.live_stance in STANCES else LEGACY_TO_STANCE.get(settings.live_ai_stance, "allow_all"),
+        "stance_options": _STANCE_OPTIONS,
     }
 
 
@@ -245,7 +253,12 @@ async def save_live_settings(body: LiveSettingsRequest, _=Depends(require_admin)
         raise HTTPException(status_code=400, detail="Live key cannot be empty")
     if body.site_type not in _SITE_TYPES:
         raise HTTPException(status_code=400, detail="Unknown site_type")
-    if body.ai_stance not in _AI_STANCES:
+    # The card sends the five-way id; the three-way value is kept in step for older readers.
+    if body.ai_stance in STANCES:
+        stance, ai_stance = body.ai_stance, legacy_value(body.ai_stance)
+    elif body.ai_stance in _AI_STANCES:
+        stance, ai_stance = LEGACY_TO_STANCE[body.ai_stance], body.ai_stance
+    else:
         raise HTTPException(status_code=400, detail="Unknown ai_stance")
     try:
         if key:
@@ -253,7 +266,8 @@ async def save_live_settings(body: LiveSettingsRequest, _=Depends(require_admin)
         if body.live_url.strip():
             dotenv_set_key(_env_path(), "LIVE_URL", body.live_url.strip())
         dotenv_set_key(_env_path(), "LIVE_SITE_TYPE", body.site_type)
-        dotenv_set_key(_env_path(), "LIVE_AI_STANCE", body.ai_stance)
+        dotenv_set_key(_env_path(), "LIVE_AI_STANCE", ai_stance)
+        dotenv_set_key(_env_path(), "LIVE_STANCE", stance)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
     get_settings.cache_clear()

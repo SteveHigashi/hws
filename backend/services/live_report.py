@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
+from higashi_reading.crawlers import LEGACY_TO_STANCE, STANCES, legacy_value
 from models.bot_visit import BotVisit
 from models.event import Event
 from models.geo_probe import GeoProbeResult
@@ -139,7 +140,8 @@ async def build_report(db: AsyncSession, site: Site, period_days: int = 1, walk_
         "period_start": period_start.isoformat(),
         "period_end": period_end.isoformat(),
         "site_type": settings.live_site_type,
-        "ai_stance": settings.live_ai_stance,
+        "ai_stance": legacy_value(settings.live_stance) if settings.live_stance in STANCES else settings.live_ai_stance,
+        "stance": settings.live_stance if settings.live_stance in STANCES else LEGACY_TO_STANCE.get(settings.live_ai_stance, "allow_all"),
         "pageviews_human": pageviews_human,
         "sessions_human": sessions_human,
         "engaged_sessions": engaged_sessions,

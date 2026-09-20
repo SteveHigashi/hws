@@ -5,6 +5,7 @@ the ceiling) and Higashi Live. No database, no network.
 """
 from __future__ import annotations
 
+from .crawlers import CLASS_LABELS, STANCES, crawler_class, refused_classes, stance_of
 from .schemas import ACTIONS, ReadingBody, Recommendation, ReportIn
 
 
@@ -16,6 +17,27 @@ AI_SEARCH_CAVEAT = (
     "Visitors who arrive from an AI answer are real visitors, and blocking training crawlers does not cost you them."
 )
 KNOWN_ROBOTS_IGNORERS = {"bytespider"}
+SEARCH_REFUSED_CAVEAT = (
+    "You chose to refuse search crawlers too. Where you enforce that, the site leaves Google and Bing search "
+    "and the AI answers built from those same crawlers, and the visitors they would have sent stop arriving."
+)
+
+
+def _came_refused(report: ReportIn) -> list[str]:
+    """Names of crawlers that came although the owner's stance refuses their class."""
+    refused = refused_classes(report)
+    return [n for n in _names(report.crawlers) if crawler_class(n) in refused]
+
+
+def _came_welcome(report: ReportIn) -> dict[str, list[str]]:
+    """Crawlers the stance allows, grouped by class label, in first-seen order."""
+    refused = refused_classes(report)
+    out: dict[str, list[str]] = {}
+    for n in _names(report.crawlers):
+        cls = crawler_class(n)
+        if cls not in refused:
+            out.setdefault(CLASS_LABELS[cls], []).append(n)
+    return out
 
 
 def size_bucket(pageviews: int) -> str:
@@ -71,9 +93,7 @@ def headline(report: ReportIn) -> str:
 
 
 def robots_paragraph(report: ReportIn, product: str = "Higashi") -> str:
-    names = [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS]
-    if not names:
-        names = _names(report.crawlers)
+    names = _came_refused(report) or [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS] or _names(report.crawlers)
     lines = "\n".join(f"User-agent: {name}\nDisallow: /" for name in names) or "User-agent: *\nDisallow: /"
     ignorers = [name for name in names if name.casefold() in KNOWN_ROBOTS_IGNORERS]
     note = (
@@ -115,7 +135,12 @@ def deterministic_reading(
     benchmarks = benchmarks or []
     unavailable = unavailable if unavailable is not None else no_comparison_notes(report)
     paragraphs: list[str] = []
-    if report.ai_stance == "found":
+    stance = stance_of(report)
+    refused = refused_classes(report)
+    came_refused = _came_refused(report)
+    welcome = _came_welcome(report)
+
+    if stance == "allow_all":
         geo = report.geo or []
         if geo:
             facts = [f"{g.engine} {'mentioned' if g.mentioned else 'did not mention'} you" + (" and cited you" if g.cited else "") for g in geo]
@@ -123,18 +148,25 @@ def deterministic_reading(
         useful = _names(c for c in report.crawlers if c.verified == "verified")
         if useful:
             paragraphs.append(f"Verified crawlers that may help discovery: {', '.join(useful)}.")
-    elif report.ai_stance == "block_all":
-        hits: dict[str, int] = {}
-        for c in report.crawlers:
-            hits[c.name] = hits.get(c.name, 0) + c.hits
-        arrived = ", ".join(f"{name} ({n:,} hits)" for name, n in hits.items()) or "No AI crawlers"
-        paragraphs.append(f"AI crawlers seen: {arrived}.")
-        paragraphs.append(robots_paragraph(report, product))
-        paragraphs.append(AI_SEARCH_CAVEAT)
+        elif welcome:
+            paragraphs.append("Crawlers seen: " + "; ".join(f"{label}: {', '.join(names)}" for label, names in welcome.items()) + ".")
     else:
-        search = [n for n in _names(report.crawlers) if n.casefold() in SEARCH_CRAWLERS]
-        training = [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS]
-        paragraphs.append(f"Search crawlers seen: {', '.join(search) or 'none'}. AI training crawlers to consider blocking: {', '.join(training) or 'none'}.")
+        seen = "; ".join(f"{label}: {', '.join(names)}" for label, names in welcome.items()) or "none"
+        paragraphs.append(f"Crawlers you allow that came: {seen}.")
+        refused_labels = ", ".join(CLASS_LABELS[c].split(" (")[0] for c in ("search", "answer_fetcher", "training", "seo_tools") if c in refused)
+        if came_refused:
+            hits: dict[str, int] = {}
+            for c in report.crawlers:
+                hits[c.name] = hits.get(c.name, 0) + c.hits
+            arrived = ", ".join(f"{n} ({hits[n]:,} hits)" for n in came_refused)
+            paragraphs.append(f"You asked to refuse {refused_labels}. These came anyway: {arrived}.")
+            paragraphs.append(robots_paragraph(report, product))
+        else:
+            paragraphs.append(f"You asked to refuse {refused_labels}. None of them came this period.")
+        if "search" in refused:
+            paragraphs.append(SEARCH_REFUSED_CAVEAT)
+        elif "training" in refused:
+            paragraphs.append(AI_SEARCH_CAVEAT)
 
     walk = report.walk.verdict
     if walk == "No walk detected":
@@ -171,7 +203,8 @@ def action_rank(action: str) -> int:
 
 
 def _training_crawlers(report: ReportIn) -> list[str]:
-    return [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS]
+    """Crawlers the owner's stance refuses that came anyway (the name is historical)."""
+    return _came_refused(report)
 
 
 def max_action(report: ReportIn) -> str:
@@ -187,7 +220,7 @@ def max_action(report: ReportIn) -> str:
         return "robots" if walk.records_taken_estimate > 0 else "observe"
     # No walk detected: the only thing left to recommend is a robots.txt request,
     # and only when the owner has said training crawlers are unwelcome.
-    if report.ai_stance in ("search_only", "block_all") and _training_crawlers(report):
+    if _came_refused(report):
         return "robots"
     if any(c.verified == "forged" for c in report.crawlers):
         return "observe"
@@ -216,7 +249,7 @@ def deterministic_recommendation(report: ReportIn) -> Recommendation:
         if walk.verdict == "Insufficient data":
             reason = "There is not enough evidence yet. Too few full content responses were seen to judge, so nothing should change."
         else:
-            reason = "Nothing in this report calls for a change. Search crawlers are welcome under your settings and no copying pattern was seen."
+            reason = "Nothing in this report calls for a change. Every crawler that came is one your settings allow, and no copying pattern was seen."
         return Recommendation(action="none", reason=reason, confidence="high" if walk.verdict != "Insufficient data" else "low",
                               scope=[], exclusions=[], observe_days=0, rollback="", do_not_use_if=[])
 
@@ -235,8 +268,9 @@ def deterministic_recommendation(report: ReportIn) -> Recommendation:
 
     if action == "robots":
         names = training or _names(report.crawlers)
+        touches_search = any(crawler_class(n) == "search" for n in names)
         reason = (f"Ask {', '.join(names)} to stay out with robots.txt. It is a request, not a wall: honest crawlers honour it, "
-                  "some ignore it, and it changes nothing for search or for people.")
+                  "some ignore it, and it changes nothing for people." + ("" if touches_search else " Search is untouched."))
         return Recommendation(action="robots", reason=reason, confidence="high", scope=["whole site"],
                               exclusions=exclusions, observe_days=0, rollback=_ROLLBACK["robots"],
                               do_not_use_if=["you rely on one of these crawlers for discovery"])

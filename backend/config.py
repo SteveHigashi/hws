@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     live_url: str = "https://intel.cloudanalyst.net"
     live_site_type: str = "other"
     live_ai_stance: str = "search_only"
+    live_stance: str = ""   # five-way stance (higashi_reading.crawlers.STANCES); empty = meaning of live_ai_stance
     live_crawler_version: int = 0
 
     class Config:

@@ -7,6 +7,7 @@ from its deploy script.
 from .deterministic import (  # noqa: F401
     AI_SEARCH_CAVEAT,
     KNOWN_ROBOTS_IGNORERS,
+    SEARCH_REFUSED_CAVEAT,
     SEARCH_CRAWLERS,
     action_rank,
     changes_between,
@@ -18,6 +19,17 @@ from .deterministic import (  # noqa: F401
     no_comparison_notes,
     robots_paragraph,
     size_bucket,
+)
+from .crawlers import (  # noqa: F401
+    CLASS_LABELS,
+    CLASSES,
+    LEGACY_TO_STANCE,
+    STANCE_IDS,
+    STANCES,
+    crawler_class,
+    legacy_value,
+    refused_classes,
+    stance_of,
 )
 from .prompt import SYSTEM_PROMPT, constrain_model_reading, parse_model_json  # noqa: F401
 from .schemas import ACTION_LABELS, ACTIONS, Crawler, GeoResult, ReadingBody, Recommendation, ReportIn, StrictModel, Walk  # noqa: F401

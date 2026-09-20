@@ -13,10 +13,15 @@ const SITE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
+// The five stance options come from the backend (higashi_reading.crawlers.STANCES) so the
+// dashboard, the signup page and the reading rules say the same thing. This is the fallback
+// while /admin/settings/live has not answered yet.
 const AI_STANCES = [
-  { value: "found", label: "Fine — I want to be found in AI answers" },
-  { value: "search_only", label: "Fine for search, not AI training" },
-  { value: "block_all", label: "Block AI training bots (AI answers in Google/Bing still see you)" },
+  { value: "allow_all", label: "Allow all known crawlers" },
+  { value: "refuse_training", label: "Refuse training crawlers" },
+  { value: "refuse_training_seo", label: "Refuse training crawlers and SEO tools" },
+  { value: "keep_search_only", label: "Keep search only" },
+  { value: "refuse_all", label: "Refuse all crawler classes" },
 ];
 
 function timeAgo(isoString) {
@@ -34,7 +39,8 @@ function LiveSettingsPanel({ forceOpen }) {
   const [keyInput, setKeyInput] = useState("");
   const [urlInput, setUrlInput] = useState("");
   const [siteType, setSiteType] = useState("other");
-  const [aiStance, setAiStance] = useState("search_only");
+  const [aiStance, setAiStance] = useState("refuse_training");
+  const [stanceOptions, setStanceOptions] = useState(AI_STANCES);
   const [showUrl, setShowUrl] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -44,7 +50,8 @@ function LiveSettingsPanel({ forceOpen }) {
       setSettings(data);
       setUrlInput(data.live_url || "");
       setSiteType(data.site_type || "other");
-      setAiStance(data.ai_stance || "search_only");
+      setAiStance(data.stance || data.ai_stance || "refuse_training");
+      if (Array.isArray(data.stance_options) && data.stance_options.length) setStanceOptions(data.stance_options);
     }).catch(() => {});
     api.get("/live/status").then(({ data }) => setStatus(data)).catch(() => {});
   };
@@ -164,12 +171,20 @@ function LiveSettingsPanel({ forceOpen }) {
                 onChange={(e) => setAiStance(e.target.value)}
                 className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-violet-500/60"
               >
-                {AI_STANCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {stanceOptions.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
+              {(() => {
+                const chosen = stanceOptions.find((s) => s.value === aiStance);
+                return chosen?.does ? (
+                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                    {chosen.does} {chosen.does_not} <span className="text-slate-400">Cost: {chosen.cost}</span>
+                  </p>
+                ) : null;
+              })()}
             </div>
           </div>
 
-          {watching && (siteType !== settings?.site_type || aiStance !== settings?.ai_stance) && (
+          {watching && (siteType !== settings?.site_type || aiStance !== (settings?.stance || settings?.ai_stance)) && (
             <button onClick={handleSave} disabled={saving} className="text-xs text-accent hover:underline">
               {saving ? "Saving…" : "Save changes to site type / AI stance"}
             </button>

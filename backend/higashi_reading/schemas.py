@@ -87,6 +87,9 @@ class ReportIn(StrictModel):
     period_end: date
     site_type: Literal["business", "blog", "shop", "directory", "other"]
     ai_stance: Literal["found", "search_only", "block_all"]
+    # The five-way choice (crawlers.STANCES). Optional so reports from older installs
+    # still validate; then `ai_stance` says what was meant (crawlers.LEGACY_TO_STANCE).
+    stance: Literal["allow_all", "refuse_training", "refuse_training_seo", "keep_search_only", "refuse_all"] | None = None
     pageviews_human: int = Field(ge=0)
     sessions_human: int = Field(ge=0)
     engaged_sessions: int = Field(ge=0)
