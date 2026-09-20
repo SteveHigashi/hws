@@ -5,6 +5,21 @@ narrow question: does a window of requests have the shape of a client systematic
 copying content records? It reports evidence and uncertainty. It does not block, slow,
 redirect, challenge, or change any request.
 
+## The contract (2026-09-18)
+
+Higashi detects scraping by observing logs. It never blocks or changes traffic. When it
+sees a possible catalogue walk, Higashi's job is to explain clearly what it saw, how
+confident it is, what parts of the site are involved, what normal user behaviour might
+overlap, and what a safe next step could be, if any. Recommendations are always small,
+reversible, and explicit about risk and rollback. If Higashi can't make a safe
+recommendation, it says so. Enforcement, if desired, happens outside Higashi and stays
+under customer control.
+
+This holds identically whether Higashi runs standalone or is launched from a control
+panel. The panel may apply a reviewed rule; Higashi never does. Higashi Live
+(`LIVE_BUSINESS_MODEL.md`) consumes the verdict and returns the reading and rule text;
+it is bound by the same contract.
+
 ## Privacy and architecture
 
 Higashi does not store raw IP addresses. During import, the crawler network check runs
