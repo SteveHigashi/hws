@@ -11,28 +11,29 @@ function timeAgo(isoString) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// Shown at the top of Catalogue Protection and AI Crawlers when Higashi Live
-// already has a reading for this site. Silent (renders nothing) otherwise —
-// free installs with no Live key never see this.
+// Shown at the top of Catalogue Protection and AI Crawlers: the headline of the
+// current reading from whichever provider is set (rules by default, so every
+// install sees one). Silent (renders nothing) only when there is no site.
 export default function LiveHeadline() {
-  const [reading, setReading] = useState(null);
+  const [data, setData] = useState(null);
   const { currentSiteId } = useSiteStore();
 
   useEffect(() => {
     if (!currentSiteId) {
-      setReading(null);
+      setData(null);
       return;
     }
-    api.get("/live/reading").then(({ data }) => setReading(data)).catch(() => setReading(null));
+    api.get("/reading").then(({ data }) => setData(data)).catch(() => setData(null));
   }, [currentSiteId]);
 
-  if (!reading) return null;
+  if (!data?.reading) return null;
+  const when = data.provider_used === "live" ? timeAgo(data.generated_at) : "just now";
 
   return (
     <div className="flex items-center gap-2 bg-violet-500/10 border border-violet-500/30 rounded-xl px-4 py-2.5 text-sm">
       <span className="text-violet-400 shrink-0">✦</span>
-      <span className="text-slate-200 truncate">{reading.headline}</span>
-      <span className="text-xs text-slate-500 ml-auto shrink-0">from Live · {timeAgo(reading.created_at)}</span>
+      <span className="text-slate-200 truncate">{data.reading.headline}</span>
+      <span className="text-xs text-slate-500 ml-auto shrink-0">{data.label} · {when}</span>
     </div>
   );
 }

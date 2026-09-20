@@ -3,15 +3,19 @@ import { useNavigate } from "react-router-dom";
 import api from "../../utils/api";
 import { useSiteStore } from "../../store/siteStore";
 
-// The dashboard's entry point into Higashi Live. No key configured → routes
-// to the Live settings card in Intelligence. Key set → calls /live/watch and
-// renders the reading in the same card language as the Catalogue Protection
-// verdict box (bordered card, uppercase eyebrow label, large headline).
+// The reading card on Overview. Every install gets a reading: by default the
+// fixed rules on this box (free, nothing sent anywhere); with the customer's own
+// model key, the same prompt through that key (still local); with a Live key,
+// Higashi Live's reading with history and comparisons. The eyebrow names who
+// wrote it. "Watch this site" asks Live for a fresh reading (or routes to the
+// Live card in Intelligence when there is no key yet).
 export default function WatchThisSite() {
   const navigate = useNavigate();
   const { currentSiteId } = useSiteStore();
   const [keySet, setKeySet] = useState(null);
   const [reading, setReading] = useState(null);
+  const [label, setLabel] = useState("Higashi rules");
+  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -22,9 +26,17 @@ export default function WatchThisSite() {
   }, []);
 
   useEffect(() => {
-    if (!currentSiteId || keySet !== true) return;
-    api.get("/live/reading").then(({ data }) => setReading(data)).catch(() => {});
-  }, [currentSiteId, keySet]);
+    if (!currentSiteId) return;
+    setReading(null);
+    setNote("");
+    api.get("/reading")
+      .then(({ data }) => {
+        setReading(data.reading);
+        setLabel(data.label || "Higashi rules");
+        setNote(data.note || "");
+      })
+      .catch(() => {});
+  }, [currentSiteId]);
 
   const handleClick = async () => {
     if (!keySet) {
@@ -36,8 +48,12 @@ export default function WatchThisSite() {
     try {
       const { data } = await api.post("/live/watch");
       setReading(data);
+      setLabel("Higashi Live");
+      setNote("");
     } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.detail || "Could not reach Higashi Live");
+      const detail = err.response?.data?.error || err.response?.data?.detail;
+      // 502 = Live itself did not answer; anything else is this install failing to keep the reading.
+      setError(detail || (err.response?.status === 502 ? "Could not reach Higashi Live" : "Live answered, but this install could not save the reading. Try again."));
     } finally {
       setLoading(false);
     }
@@ -61,8 +77,9 @@ export default function WatchThisSite() {
       {reading && (
         <div className="border border-violet-500/40 bg-violet-500/5 rounded-xl p-6 space-y-4">
           <div>
-            <p className="text-xs uppercase tracking-widest text-violet-300/70">Higashi Live</p>
+            <p className="text-xs uppercase tracking-widest text-violet-300/70">{label}</p>
             <h2 className="text-2xl font-semibold text-white mt-2 leading-snug">{reading.headline}</h2>
+            {note && <p className="text-xs text-slate-500 mt-1">{note}</p>}
           </div>
 
           {reading.paragraphs?.map((p, i) => (

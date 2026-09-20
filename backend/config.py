@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # viabandwidth.com lives on its own IONOS VPS (plain nginx, not Cloudways)
     ssh_password_viabandwidth: str = ""
     live_key: str = ""
+    # Who writes the walk reading shown on the dashboard: "local" = the fixed rules on
+    # this install (free), "byok" = the same prompt through the customer's own model key
+    # (still local), "live" = Higashi Live's stored reading. Rules are the ceiling in all three.
+    walk_reading_provider: str = "local"
+    walk_reading_model: str = ""   # BYOK model id; empty = ai_default_model
     live_url: str = "https://intel.cloudanalyst.net"
     live_site_type: str = "other"
     live_ai_stance: str = "search_only"

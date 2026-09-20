@@ -211,6 +211,66 @@ const PROVIDER_LABEL = {
   google: "Google",
 };
 
+// One choice: who writes the walk reading shown on Overview. The rules are the
+// ceiling whichever is picked; the model, if any, only writes the prose.
+function ReadingProviderPanel() {
+  const [cfg, setCfg] = useState(null); // {provider, model, live_key_set, keys_set}
+  const [provider, setProvider] = useState("local");
+  const [msg, setMsg] = useState("");
+
+  const load = () => api.get("/admin/settings/reading").then(({ data }) => { setCfg(data); setProvider(data.provider); }).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const save = async (value) => {
+    setProvider(value);
+    setMsg("");
+    try {
+      await api.post("/admin/settings/reading", { provider: value, model: cfg?.model || "" });
+      setMsg("Saved");
+      setTimeout(() => setMsg(""), 2000);
+      load();
+    } catch (err) {
+      setMsg(err.response?.data?.detail || "Error");
+      load();
+    }
+  };
+
+  const anyKey = cfg && Object.values(cfg.keys_set || {}).some(Boolean);
+  const options = [
+    { value: "local", label: "Higashi rules", hint: "Fixed rules on this install. Free. Nothing leaves this box." },
+    { value: "byok", label: "Bring your own AI key", hint: anyKey ? `Your own model key (${cfg?.model}). Still local; the rules stay the ceiling.` : "Add a model key below first." },
+    { value: "live", label: "Use Higashi Live", hint: cfg?.live_key_set ? "History, comparisons to similar sites, weekly email." : "Add a Live key above first." },
+  ];
+
+  return (
+    <div className="bg-surface-800 border border-surface-600 rounded-xl px-5 py-4 space-y-3">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-slate-300">Explain crawler activity with</span>
+        {msg && <span className="text-xs text-slate-500">{msg}</span>}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {options.map((o) => {
+          const disabled = (o.value === "byok" && !anyKey) || (o.value === "live" && !cfg?.live_key_set);
+          const active = provider === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              disabled={disabled}
+              onClick={() => save(o.value)}
+              className={`text-left rounded-lg border px-3 py-2.5 transition-colors disabled:opacity-40 ${active ? "border-violet-500/60 bg-violet-500/10" : "border-surface-600 hover:bg-surface-700/50"}`}
+            >
+              <p className="text-sm text-slate-200">{o.label}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{o.hint}</p>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function AISettingsPanel() {
   const [open, setOpen] = useState(false);
   const [usage, setUsage] = useState(null);
@@ -864,6 +924,8 @@ export default function Intelligence() {
       <AskChat days={days} currentSiteId={currentSiteId} />
 
       {isAdmin && <LiveSettingsPanel forceOpen={openLive} />}
+
+      {isAdmin && <ReadingProviderPanel />}
 
       {isAdmin && <AISettingsPanel />}
 

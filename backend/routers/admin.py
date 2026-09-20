@@ -270,6 +270,46 @@ async def remove_live_settings(_=Depends(require_admin)):
     return {"ok": True}
 
 
+_READING_PROVIDERS = {"local", "byok", "live"}
+
+
+class ReadingSettingsRequest(BaseModel):
+    provider: str
+    model: str = ""
+
+
+@router.get("/settings/reading")
+async def get_reading_settings(_=Depends(require_admin)):
+    settings = get_settings()
+    return {
+        "provider": settings.walk_reading_provider if settings.walk_reading_provider in _READING_PROVIDERS else "local",
+        "model": settings.walk_reading_model or settings.ai_default_model,
+        "live_key_set": bool(settings.live_key),
+        "keys_set": {
+            "anthropic": bool(settings.anthropic_api_key),
+            "openai": bool(settings.openai_api_key),
+            "google": bool(settings.google_api_key),
+        },
+    }
+
+
+@router.post("/settings/reading")
+async def save_reading_settings(body: ReadingSettingsRequest, _=Depends(require_admin)):
+    """Which provider writes the walk reading. Rules stay the ceiling whichever is chosen."""
+    if body.provider not in _READING_PROVIDERS:
+        raise HTTPException(status_code=400, detail="Unknown provider")
+    settings = get_settings()
+    if body.provider == "live" and not settings.live_key:
+        raise HTTPException(status_code=400, detail="Add a Live key first")
+    try:
+        dotenv_set_key(_env_path(), "WALK_READING_PROVIDER", body.provider)
+        dotenv_set_key(_env_path(), "WALK_READING_MODEL", body.model.strip())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not write .env: {e}")
+    get_settings.cache_clear()
+    return {"ok": True}
+
+
 @router.get("/settings/ai/usage")
 async def get_ai_usage(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     from models.ai_usage import AIUsageLog
