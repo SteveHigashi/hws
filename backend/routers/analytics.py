@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, distinct
 from datetime import datetime, timedelta
+import asyncio
+import time
 from collections import Counter, defaultdict
 
 from database import get_db
@@ -49,40 +51,76 @@ def _class_bucket(traffic_class: str) -> str:
     return traffic_class
 
 
+# Overview, Traffic Quality, Scanner Noise and Suspicious all ask for the same context in
+# one page load; compute it once and keep it briefly. Keyed per site and window.
+_QUALITY_CACHE: dict = {}
+_QUALITY_TTL = 300.0
+# Single-flight: a page load fires four requests that all need this context. Without the
+# lock each one computed it independently and a single CPU spent minutes on the same work.
+_QUALITY_LOCKS: dict = {}
+
+
 async def _traffic_quality_context(db: AsyncSession, days: int, site_id: str | None = None) -> dict:
-    s = since(days)
     site_uuid = clean_site_id(site_id) if site_id else None
+    cache_key = (str(site_uuid), days)
+    cached = _QUALITY_CACHE.get(cache_key)
+    if cached and cached[0] > time.monotonic():
+        return cached[1]
+    lock = _QUALITY_LOCKS.setdefault(cache_key, asyncio.Lock())
+    async with lock:
+        cached = _QUALITY_CACHE.get(cache_key)
+        if cached and cached[0] > time.monotonic():
+            return cached[1]
+        return await _build_traffic_quality_context(db, days, site_uuid, cache_key)
+
+
+async def _build_traffic_quality_context(db: AsyncSession, days: int, site_uuid, cache_key) -> dict:
+    s = since(days)
 
     session_conds = [Session.started_at >= s]
     if site_uuid:
         session_conds.append(Session.site_id == site_uuid)
 
-    sessions_result = await db.execute(select(Session).where(*session_conds))
-    sessions = sessions_result.scalars().all()
+    # Plain column rows, not ORM objects: the classifier only reads a dozen fields and a
+    # busy site has 200k+ events in a month. Row objects keep attribute access, so
+    # classify_session() and the consumers below are unchanged.
+    sessions_result = await db.execute(
+        select(Session.id, Session.started_at, Session.page_count, Session.referrer_domain,
+               Session.duration_seconds, Session.is_bounce)
+        .where(*session_conds)
+    )
+    sessions = sessions_result.all()
     session_ids = [session.id for session in sessions]
 
+    # One windowed query per table, not 800-id IN() batches: each batch cost ~1.6 s of
+    # bind-parameter and row overhead (57 batches for a busy month), while the whole window
+    # comes back in one indexed pass in a few seconds. Rows are attached only to sessions
+    # in the window, which is what the batches selected anyway.
+    session_set = set(session_ids)
     events_by_session = defaultdict(list)
     if session_ids:
-        for batch in _chunks(session_ids):
-            event_conds = [Event.session_id.in_(batch), Event.timestamp >= s]
-            if site_uuid:
-                event_conds.append(Event.site_id == site_uuid)
-            events_result = await db.execute(
-                select(Event).where(*event_conds).order_by(Event.session_id, Event.timestamp)
-            )
-            for event in events_result.scalars().all():
+        event_cols = (Event.session_id, Event.page_url, Event.referrer, Event.user_agent, Event.is_404,
+                      Event.duration_seconds, Event.scroll_depth, Event.screen_width, Event.screen_height,
+                      Event.language, Event.lcp, Event.fcp, Event.ttfb, Event.meta)
+        event_conds = [Event.timestamp >= s]
+        if site_uuid:
+            event_conds.append(Event.site_id == site_uuid)
+        events_result = await db.execute(
+            select(*event_cols).where(*event_conds).order_by(Event.session_id, Event.timestamp)
+        )
+        for event in events_result.all():
+            if event.session_id in session_set:
                 events_by_session[event.session_id].append(event)
 
     behavior_session_ids = set()
     if session_ids:
-        for batch in _chunks(session_ids):
-            behavior_conds = [BehaviorEvent.session_id.in_(batch), BehaviorEvent.timestamp >= s]
-            if site_uuid:
-                behavior_conds.append(BehaviorEvent.site_id == site_uuid)
-            behavior_result = await db.execute(
-                select(distinct(BehaviorEvent.session_id)).where(*behavior_conds)
-            )
-            behavior_session_ids.update(row[0] for row in behavior_result.all())
+        behavior_conds = [BehaviorEvent.timestamp >= s]
+        if site_uuid:
+            behavior_conds.append(BehaviorEvent.site_id == site_uuid)
+        behavior_result = await db.execute(
+            select(distinct(BehaviorEvent.session_id)).where(*behavior_conds)
+        )
+        behavior_session_ids.update(row[0] for row in behavior_result.all() if row[0] in session_set)
 
     quality_by_session = {}
     counts = Counter({traffic_class: 0 for traffic_class in TRAFFIC_CLASSES})
@@ -114,7 +152,7 @@ async def _traffic_quality_context(db: AsyncSession, days: int, site_id: str | N
     verified = counts["verified_human"]
     has_verified = verified > 0
 
-    return {
+    ctx = {
         "since": s,
         "sessions": sessions,
         "events_by_session": events_by_session,
@@ -127,6 +165,8 @@ async def _traffic_quality_context(db: AsyncSession, days: int, site_id: str | N
         "traffic_confidence": quality_confidence(has_verified, likely, total_sessions),
         "has_js_proof": has_verified,
     }
+    _QUALITY_CACHE[cache_key] = (time.monotonic() + _QUALITY_TTL, ctx)
+    return ctx
 
 
 def _quality_payload(ctx: dict, days: int) -> dict:

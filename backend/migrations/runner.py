@@ -10,3 +10,8 @@ def apply_migrations(connection) -> None:
     except ImportError:
         return
     upgrade_walk_detection(connection)
+    try:
+        from migrations.m003_query_indexes import upgrade as upgrade_query_indexes
+    except ImportError:
+        return
+    upgrade_query_indexes(connection)

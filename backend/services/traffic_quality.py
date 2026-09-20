@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterable
@@ -96,32 +97,42 @@ def path_from_url(value: str | None) -> str:
     return value.split("?", 1)[0] or "/"
 
 
-def classify_path(path: str | None) -> tuple[str, list[str]]:
-    normalized = path_from_url(path)
-    reasons: list[str] = []
+# A month of one busy site is ~200k events but only a few thousand distinct user agents
+# and paths. Uncached, the regex passes below cost minutes of CPU per dashboard load
+# (2026-09-19: 618k regex searches for 3,000 sessions). Memoise on the string.
+@lru_cache(maxsize=65536)
+def _classify_path_cached(normalized: str) -> tuple[str, tuple[str, ...]]:
     if SCANNER_PATH_RE.search(normalized):
-        reasons.append("scanner/security path")
-        return "scanner", reasons
+        return "scanner", ("scanner/security path",)
     if OLD_PLATFORM_RE.search(normalized):
-        reasons.append("old platform/archive residue")
-        return "platform_residue", reasons
+        return "platform_residue", ("old platform/archive residue",)
     if STATIC_ASSET_RE.search(normalized):
-        reasons.append("static asset")
-        return "asset", reasons
-    return "content", reasons
+        return "asset", ("static asset",)
+    return "content", ()
+
+
+def classify_path(path: str | None) -> tuple[str, list[str]]:
+    kind, reasons = _classify_path_cached(path_from_url(path))
+    return kind, list(reasons)
+
+
+@lru_cache(maxsize=65536)
+def _classify_user_agent_cached(user_agent: str) -> tuple[str, tuple[str, ...]]:
+    if SCANNER_UA_RE.search(user_agent):
+        return "scanner", ("scanner user agent",)
+
+    bot = classify_bot(user_agent)
+    if bot:
+        if bot.get("category") == "ai_crawler":
+            return "ai_crawler", (f"known AI crawler: {bot['name']}",)
+        return "known_bot", (f"known bot: {bot['name']}",)
+
+    return "unknown", ()
 
 
 def classify_user_agent(user_agent: str | None) -> tuple[str, list[str]]:
-    if SCANNER_UA_RE.search(user_agent or ""):
-        return "scanner", ["scanner user agent"]
-
-    bot = classify_bot(user_agent or "")
-    if bot:
-        if bot.get("category") == "ai_crawler":
-            return "ai_crawler", [f"known AI crawler: {bot['name']}"]
-        return "known_bot", [f"known bot: {bot['name']}"]
-
-    return "unknown", []
+    kind, reasons = _classify_user_agent_cached(user_agent or "")
+    return kind, list(reasons)
 
 
 def has_js_proof(events: Iterable, has_behavior_events: bool = False) -> bool:
