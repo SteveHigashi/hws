@@ -15,3 +15,8 @@ def apply_migrations(connection) -> None:
     except ImportError:
         return
     upgrade_query_indexes(connection)
+    try:
+        from migrations.m004_session_quality import upgrade as upgrade_session_quality
+    except ImportError:
+        return
+    upgrade_session_quality(connection)

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from models.event import Event
 from models.import_cursor import ImportCursor
 from models.session import Session
+from services.session_quality import classify_sessions
 from models.site import Site
 from models.bot_visit import BotVisit
 from services.bot import classify_bot
@@ -178,6 +179,12 @@ async def import_log_file(
         for b in new_bot_visits:
             db.add(b)
         await db.commit()
+        # Verdict per session, stored on the row (m004). A session that spans two
+        # flushes is simply classified twice; the second pass sees all its events.
+        touched = {e.session_id for e in new_events}
+        if touched:
+            await classify_sessions(db, touched)
+            await db.commit()
         new_sessions.clear()
         new_events.clear()
         new_bot_visits.clear()

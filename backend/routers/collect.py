@@ -13,6 +13,7 @@ import re
 from database import get_db
 from models.event import Event
 from models.session import Session
+from services.session_quality import classify_and_commit
 from models.site import Site
 from models.bot_visit import BotVisit
 from services.geo import resolve_geo
@@ -180,6 +181,9 @@ async def collect_pageview(
     )
     db.add(event)
     await db.commit()
+    # The verdict lives on the session row (m004); this event may change it, e.g. the
+    # first pageview carrying screen size turns a log-only session into a verified human.
+    await classify_and_commit(db, [payload.session_id])
 
     response.status_code = 204
     return

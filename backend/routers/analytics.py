@@ -2,8 +2,6 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, distinct
 from datetime import datetime, timedelta
-import asyncio
-import time
 from collections import Counter, defaultdict
 
 from database import get_db
@@ -17,7 +15,6 @@ from services.traffic_quality import (
     TRAFFIC_CLASSES,
     TRAFFIC_LABELS,
     classify_path,
-    classify_session,
     path_from_url,
     quality_confidence,
 )
@@ -51,91 +48,31 @@ def _class_bucket(traffic_class: str) -> str:
     return traffic_class
 
 
-# Overview, Traffic Quality, Scanner Noise and Suspicious all ask for the same context in
-# one page load; compute it once and keep it briefly. Keyed per site and window.
-_QUALITY_CACHE: dict = {}
-_QUALITY_TTL = 300.0
-# Single-flight: a page load fires four requests that all need this context. Without the
-# lock each one computed it independently and a single CPU spent minutes on the same work.
-_QUALITY_LOCKS: dict = {}
-
-
+# The verdict per session is stored on the row when its events land (m004,
+# services.session_quality). Reads are GROUP BYs over an indexed window; nothing is
+# classified here and there is no cache to go cold.
 async def _traffic_quality_context(db: AsyncSession, days: int, site_id: str | None = None) -> dict:
-    site_uuid = clean_site_id(site_id) if site_id else None
-    cache_key = (str(site_uuid), days)
-    cached = _QUALITY_CACHE.get(cache_key)
-    if cached and cached[0] > time.monotonic():
-        return cached[1]
-    lock = _QUALITY_LOCKS.setdefault(cache_key, asyncio.Lock())
-    async with lock:
-        cached = _QUALITY_CACHE.get(cache_key)
-        if cached and cached[0] > time.monotonic():
-            return cached[1]
-        return await _build_traffic_quality_context(db, days, site_uuid, cache_key)
-
-
-async def _build_traffic_quality_context(db: AsyncSession, days: int, site_uuid, cache_key) -> dict:
     s = since(days)
-
-    session_conds = [Session.started_at >= s]
+    site_uuid = clean_site_id(site_id) if site_id else None
+    conds = [Session.started_at >= s]
     if site_uuid:
-        session_conds.append(Session.site_id == site_uuid)
+        conds.append(Session.site_id == site_uuid)
 
-    # Plain column rows, not ORM objects: the classifier only reads a dozen fields and a
-    # busy site has 200k+ events in a month. Row objects keep attribute access, so
-    # classify_session() and the consumers below are unchanged.
-    sessions_result = await db.execute(
-        select(Session.id, Session.started_at, Session.page_count, Session.referrer_domain,
-               Session.duration_seconds, Session.is_bounce)
-        .where(*session_conds)
-    )
-    sessions = sessions_result.all()
-    session_ids = [session.id for session in sessions]
+    class_rows = (await db.execute(
+        select(Session.traffic_class, func.count(Session.id), func.sum(Session.quality_confidence))
+        .where(*conds)
+        .group_by(Session.traffic_class)
+    )).all()
 
-    # One windowed query per table, not 800-id IN() batches: each batch cost ~1.6 s of
-    # bind-parameter and row overhead (57 batches for a busy month), while the whole window
-    # comes back in one indexed pass in a few seconds. Rows are attached only to sessions
-    # in the window, which is what the batches selected anyway.
-    session_set = set(session_ids)
-    events_by_session = defaultdict(list)
-    if session_ids:
-        event_cols = (Event.session_id, Event.page_url, Event.referrer, Event.user_agent, Event.is_404,
-                      Event.duration_seconds, Event.scroll_depth, Event.screen_width, Event.screen_height,
-                      Event.language, Event.lcp, Event.fcp, Event.ttfb, Event.meta)
-        event_conds = [Event.timestamp >= s]
-        if site_uuid:
-            event_conds.append(Event.site_id == site_uuid)
-        events_result = await db.execute(
-            select(*event_cols).where(*event_conds).order_by(Event.session_id, Event.timestamp)
-        )
-        for event in events_result.all():
-            if event.session_id in session_set:
-                events_by_session[event.session_id].append(event)
-
-    behavior_session_ids = set()
-    if session_ids:
-        behavior_conds = [BehaviorEvent.timestamp >= s]
-        if site_uuid:
-            behavior_conds.append(BehaviorEvent.site_id == site_uuid)
-        behavior_result = await db.execute(
-            select(distinct(BehaviorEvent.session_id)).where(*behavior_conds)
-        )
-        behavior_session_ids.update(row[0] for row in behavior_result.all() if row[0] in session_set)
-
-    quality_by_session = {}
     counts = Counter({traffic_class: 0 for traffic_class in TRAFFIC_CLASSES})
     confidence_totals = Counter()
-
-    for session in sessions:
-        quality = classify_session(
-            session,
-            events_by_session.get(session.id, []),
-            session.id in behavior_session_ids,
-        )
-        quality_by_session[session.id] = quality
-        traffic_class = quality["traffic_class"]
-        counts[traffic_class] += 1
-        confidence_totals[traffic_class] += quality["confidence"]
+    unclassified = 0
+    for traffic_class, count, confidence in class_rows:
+        if traffic_class is None:
+            unclassified = count
+            continue
+        counts[traffic_class] += count
+        confidence_totals[traffic_class] += float(confidence or 0)
 
     bot_conds = [BotVisit.timestamp >= s]
     if site_uuid:
@@ -147,26 +84,24 @@ async def _build_traffic_quality_context(db: AsyncSession, days: int, site_uuid,
     )
     bot_counts = {row.bot_category: row.visits for row in bot_result.all()}
 
-    total_sessions = len(sessions)
+    total_sessions = sum(counts.values()) + unclassified
     likely = counts["likely_human"]
     verified = counts["verified_human"]
     has_verified = verified > 0
 
-    ctx = {
+    return {
         "since": s,
-        "sessions": sessions,
-        "events_by_session": events_by_session,
-        "quality_by_session": quality_by_session,
+        "site_uuid": site_uuid,
+        "session_conds": conds,
         "counts": counts,
         "confidence_totals": confidence_totals,
         "bot_counts": bot_counts,
         "total_sessions": total_sessions,
+        "unclassified": unclassified,
         "real_traffic_estimate": verified + likely,
         "traffic_confidence": quality_confidence(has_verified, likely, total_sessions),
         "has_js_proof": has_verified,
     }
-    _QUALITY_CACHE[cache_key] = (time.monotonic() + _QUALITY_TTL, ctx)
-    return ctx
 
 
 def _quality_payload(ctx: dict, days: int) -> dict:
@@ -209,8 +144,11 @@ def _quality_payload(ctx: dict, days: int) -> dict:
         "ai_crawlers": ai_crawlers,
         "bot_visits": sum(bot_counts.values()),
         "bot_counts": bot_counts,
+        "unclassified_sessions": ctx["unclassified"],
         "note": (
-            "No JS-tracked sessions yet; human estimate is based on log signals."
+            f"{ctx['unclassified']:,} sessions not classified yet (first pass after the upgrade is still running)."
+            if ctx["unclassified"]
+            else "No JS-tracked sessions yet; human estimate is based on log signals."
             if not ctx["has_js_proof"] and total_sessions
             else None
         ),
@@ -306,6 +244,7 @@ async def overview(
         "ai_crawlers": quality["ai_crawlers"],
         "suspicious_sessions": quality["suspicious_sessions"],
         "unknown_sessions": quality["unknown_sessions"],
+        "unclassified_sessions": quality["unclassified_sessions"],
         "real_traffic_estimate": quality["real_traffic_estimate"],
         "traffic_confidence": quality["traffic_confidence"],
         "has_js_proof": quality["has_js_proof"],
@@ -345,37 +284,31 @@ async def top_pages(
         ]
 
     if traffic in ("humans", "suspicious"):
-        ctx = await _traffic_quality_context(db, days, site_id)
-        wanted = {"verified_human", "likely_human"} if traffic == "humans" else {"suspicious"}
-        session_ids = [
-            sid for sid, quality in ctx["quality_by_session"].items()
-            if quality["traffic_class"] in wanted
-        ]
-        page_counts = Counter()
-        duration_totals = Counter()
-        duration_counts = Counter()
-        scroll_totals = Counter()
-        scroll_counts = Counter()
-        for sid in session_ids:
-            for event in ctx["events_by_session"].get(sid, []):
-                if getattr(event, "is_404", False):
-                    continue
-                page_counts[event.page_url] += 1
-                if event.duration_seconds is not None:
-                    duration_totals[event.page_url] += event.duration_seconds
-                    duration_counts[event.page_url] += 1
-                if event.scroll_depth is not None:
-                    scroll_totals[event.page_url] += event.scroll_depth
-                    scroll_counts[event.page_url] += 1
-        rows = page_counts.most_common(limit)
+        wanted = ("verified_human", "likely_human") if traffic == "humans" else ("suspicious",)
+        conds = [Event.timestamp >= s, Event.is_404 == False, Session.traffic_class.in_(wanted)]
+        if site_uuid:
+            conds.append(Event.site_id == site_uuid)
+        result = await db.execute(
+            select(
+                Event.page_url,
+                func.count(Event.id).label("views"),
+                func.avg(Event.duration_seconds).label("avg_duration"),
+                func.avg(Event.scroll_depth).label("avg_scroll"),
+            )
+            .join(Session, Session.id == Event.session_id)
+            .where(*conds)
+            .group_by(Event.page_url)
+            .order_by(desc("views"))
+            .limit(limit)
+        )
         return [
             {
-                "page": page,
-                "views": views,
-                "avg_duration": round(duration_totals[page] / duration_counts[page], 1) if duration_counts[page] else None,
-                "avg_scroll": round(scroll_totals[page] / scroll_counts[page]) if scroll_counts[page] else None,
+                "page": row.page_url,
+                "views": row.views,
+                "avg_duration": round(float(row.avg_duration), 1) if row.avg_duration else None,
+                "avg_scroll": round(float(row.avg_scroll)) if row.avg_scroll else None,
             }
-            for page, views in rows
+            for row in result
         ]
 
     conds = [Event.timestamp >= s, Event.is_bot == False, Event.is_404 == False]
@@ -429,10 +362,18 @@ async def traffic_quality_timeseries(
     ctx = await _traffic_quality_context(db, days, site_id)
     rows = defaultdict(lambda: Counter({traffic_class: 0 for traffic_class in TRAFFIC_CLASSES}))
 
-    for session in ctx["sessions"]:
-        day = _event_day(session.started_at)
-        traffic_class = ctx["quality_by_session"][session.id]["traffic_class"]
-        rows[day][traffic_class] += 1
+    day_result = await db.execute(
+        select(
+            func.strftime("%Y-%m-%d", Session.started_at).label("day"),
+            Session.traffic_class,
+            func.count(Session.id).label("sessions"),
+        )
+        .where(*ctx["session_conds"])
+        .group_by("day", Session.traffic_class)
+    )
+    for row in day_result.all():
+        if row.traffic_class is not None:
+            rows[row.day][row.traffic_class] += row.sessions
 
     bot_conds = [BotVisit.timestamp >= ctx["since"]]
     site_uuid = clean_site_id(site_id) if site_id else None
@@ -477,15 +418,26 @@ async def suspicious_traffic(
     path_counts = Counter()
     ua_counts = Counter()
 
-    for sid, quality in ctx["quality_by_session"].items():
-        if quality["traffic_class"] != "suspicious":
-            continue
-        for reason in quality["reasons"]:
+    suspicious = (await db.execute(
+        select(Session.id, Session.quality_reasons)
+        .where(*ctx["session_conds"], Session.traffic_class == "suspicious")
+    )).all()
+    for _sid, reasons in suspicious:
+        for reason in reasons or []:
             reason_counts[reason] += 1
-        for event in ctx["events_by_session"].get(sid, []):
-            path_counts[path_from_url(event.page_url)] += 1
-            if event.user_agent:
-                ua_counts[event.user_agent[:180]] += 1
+    # Suspicious sessions are a small slice of the window (thousands, not hundreds of
+    # thousands), so their events are read by session id in bounded chunks.
+    for chunk in _chunks([sid for sid, _r in suspicious]):
+        event_conds = [Event.session_id.in_(chunk), Event.timestamp >= ctx["since"]]
+        if ctx["site_uuid"]:
+            event_conds.append(Event.site_id == ctx["site_uuid"])
+        events = (await db.execute(
+            select(Event.page_url, Event.user_agent).where(*event_conds)
+        )).all()
+        for page_url, user_agent in events:
+            path_counts[path_from_url(page_url)] += 1
+            if user_agent:
+                ua_counts[user_agent[:180]] += 1
 
     return {
         "sessions": ctx["counts"]["suspicious"],

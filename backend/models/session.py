@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Boolean, Float
+from sqlalchemy import Column, String, DateTime, Integer, Boolean, Float, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -29,3 +29,11 @@ class Session(Base):
     utm_source = Column(String(256), nullable=True)
     utm_medium = Column(String(256), nullable=True)
     utm_campaign = Column(String(256), nullable=True)
+
+    # Traffic-quality verdict, written when the session's events land (m004).
+    # NULL means "not yet classified"; the dashboard reports those separately
+    # instead of guessing.
+    traffic_class = Column(String(20), nullable=True)
+    quality_confidence = Column(Float, nullable=True)
+    quality_reasons = Column(JSON, nullable=True)
+    quality_at = Column(DateTime(timezone=True), nullable=True)

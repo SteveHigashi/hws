@@ -11,7 +11,8 @@ import tempfile
 import os
 
 from config import get_settings
-from database import init_db
+from database import init_db, AsyncSessionLocal
+from services.session_quality import backfill_in_background
 from routers import collect, analytics, auth, setup, intelligence, admin, behavior, ai_crawlers
 from routers import import_logs, geo_probes, sites, live_traffic, live
 from services.live_client import load_local_live_ranges
@@ -78,8 +79,12 @@ async def lifespan(app: FastAPI):
     # imports it. Lived only on the cloudanalyst install until 2026-09-18; it
     # is what fills pageviews for sites whose browser beacon never arrives.
     task = asyncio.create_task(_sync_loop())
+    # Sessions written before m004 carry no stored verdict; classify them once, in the
+    # background, newest first. Restart-safe: it resumes wherever it stopped.
+    backfill_task = asyncio.create_task(backfill_in_background(AsyncSessionLocal))
     yield
     task.cancel()
+    backfill_task.cancel()
 
 
 app = FastAPI(

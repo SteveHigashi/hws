@@ -10,6 +10,7 @@ from database import get_db
 from models.behavior import BehaviorEvent
 from models.session import Session as SessionModel
 from models.site import Site
+from services.session_quality import classify_and_commit
 from routers.auth import get_current_user
 
 router = APIRouter()
@@ -149,6 +150,8 @@ async def collect_behavior_batch(
 
     db.add_all(to_insert)
     await db.commit()
+    # Behaviour events are JS proof: the session's stored verdict becomes verified_human.
+    await classify_and_commit(db, {ev.session_id for ev in to_insert})
     response.status_code = 204
     return
 
