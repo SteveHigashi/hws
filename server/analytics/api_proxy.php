@@ -45,7 +45,16 @@ if (in_array($method, ['POST', 'PATCH', 'PUT'])) {
 $response   = curl_exec($ch);
 $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
 $httpCode   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlErr    = curl_errno($ch) ? curl_error($ch) : '';
 curl_close($ch);
+
+// A backend that is down or too slow must not look like an empty 200 to the dashboard.
+if ($response === false || $httpCode === 0) {
+    http_response_code(502);
+    header('Content-Type: application/json');
+    echo json_encode(['detail' => 'Higashi backend did not answer: ' . ($curlErr ?: 'no response')]);
+    exit;
+}
 
 // Split headers from body
 $rawHeaders = substr($response, 0, $headerSize);

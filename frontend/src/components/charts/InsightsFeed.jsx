@@ -5,7 +5,8 @@ const SEVERITY_STYLE = {
   low:    { dot: "bg-slate-500", bg: "border-surface-500 bg-surface-700" },
 };
 
-export default function InsightsFeed({ insights = [], loading, enrichMeta, enrichLoading }) {
+export default function InsightsFeed({ insights: rawInsights = [], loading, enrichMeta, enrichLoading }) {
+  const insights = Array.isArray(rawInsights) ? rawInsights : [];
   if (loading) {
     return (
       <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">

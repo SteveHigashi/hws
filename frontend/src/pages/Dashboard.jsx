@@ -286,7 +286,8 @@ function Overview() {
     setEnrichMeta(null);
     api
       .get("/intelligence/insights?days=7")
-      .then(({ data }) => {
+      .then(({ data: raw }) => {
+        const data = Array.isArray(raw) ? raw : [];
         setInsights(data);
         setInsightsLoading(false);
         if (data.length > 0) {
@@ -294,7 +295,7 @@ function Overview() {
           api
             .post("/intelligence/enrich", { insights: data, days: 7 })
             .then(({ data: ed }) => {
-              setInsights(ed.enriched);
+              setInsights(Array.isArray(ed?.enriched) ? ed.enriched : data);
               if (!ed.skipped) setEnrichMeta(ed);
             })
             .catch(() => {})

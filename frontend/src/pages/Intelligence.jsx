@@ -16,7 +16,7 @@ const SITE_TYPES = [
 const AI_STANCES = [
   { value: "found", label: "Fine — I want to be found in AI answers" },
   { value: "search_only", label: "Fine for search, not AI training" },
-  { value: "block_all", label: "Block all AI bots" },
+  { value: "block_all", label: "Block AI training bots (AI answers in Google/Bing still see you)" },
 ];
 
 function timeAgo(isoString) {
