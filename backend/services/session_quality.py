@@ -139,7 +139,8 @@ async def backfill_in_background(session_factory) -> None:
             return
         log.info("session quality backfill: %d sessions to classify", pending)
         started = asyncio.get_event_loop().time()
-        done = await backfill(session_factory)
+        # 250 per batch: ~1 s of CPU between yields on the 1-vCPU box (measured 6.7 ms/session).
+        done = await backfill(session_factory, batch=250, pause=0.1)
         log.info("session quality backfill: %d sessions classified in %.0f s",
                  done, asyncio.get_event_loop().time() - started)
     except asyncio.CancelledError:
