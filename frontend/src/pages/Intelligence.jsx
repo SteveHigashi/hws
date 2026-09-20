@@ -33,7 +33,9 @@ function timeAgo(isoString) {
 }
 
 function LiveSettingsPanel({ forceOpen }) {
-  const [open, setOpen] = useState(false);
+  const cardRef = useRef(null);
+  const keyRef = useRef(null);
+  const savedTimer = useRef(null);
   const [settings, setSettings] = useState(null); // {live_key_set, live_url, site_type, ai_stance}
   const [status, setStatus] = useState(null); // {key_set, last_send, last_reading_at}
   const [keyInput, setKeyInput] = useState("");
@@ -43,7 +45,8 @@ function LiveSettingsPanel({ forceOpen }) {
   const [stanceOptions, setStanceOptions] = useState(AI_STANCES);
   const [showUrl, setShowUrl] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [keyError, setKeyError] = useState("");
 
   const refresh = () => {
     api.get("/admin/settings/live").then(({ data }) => {
@@ -56,14 +59,27 @@ function LiveSettingsPanel({ forceOpen }) {
     api.get("/live/status").then(({ data }) => setStatus(data)).catch(() => {});
   };
 
-  useEffect(() => { refresh(); }, []);
-  useEffect(() => { if (forceOpen) setOpen(true); }, [forceOpen]);
+  useEffect(() => { refresh(); return () => clearTimeout(savedTimer.current); }, []);
+  useEffect(() => {
+    if (!forceOpen) return;
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    keyRef.current?.focus({ preventScroll: true });
+  }, [forceOpen]);
 
-  const watching = settings?.live_key_set;
+  const watching = status?.key_set ?? settings?.live_key_set;
+  const validKey = /^hl_\S{43}$/.test(keyInput);
+  const invalidKey = keyInput.length > 0 && !validKey;
 
-  const handleSave = async () => {
+  const handleSave = async (keyRequired = false) => {
+    if (saving) return;
+    if (keyRequired && !validKey) {
+      setKeyError("That is not a Live key — it should start with hl_ and be 46 characters");
+      return;
+    }
     setSaving(true);
-    setSaveMsg("");
+    setSaved(false);
+    setKeyError("");
+    clearTimeout(savedTimer.current);
     try {
       await api.post("/admin/settings/live", {
         live_key: keyInput.trim(),
@@ -73,10 +89,10 @@ function LiveSettingsPanel({ forceOpen }) {
       });
       setKeyInput("");
       refresh();
-      setSaveMsg("Saved");
-      setTimeout(() => setSaveMsg(""), 2000);
+      setSaved(true);
+      savedTimer.current = setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      setSaveMsg(err.response?.data?.detail || "Error");
+      setKeyError(err.response?.data?.detail || "Could not save the Live key");
     } finally {
       setSaving(false);
     }
@@ -95,19 +111,14 @@ function LiveSettingsPanel({ forceOpen }) {
     : "Not watching";
 
   return (
-    <div className="bg-surface-800 border border-surface-600 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface-700/50 transition-colors"
-      >
-        <span className="text-violet-400 text-xs">✦</span>
-        <span className="text-sm font-medium text-slate-300">Higashi Live</span>
-        <span className="text-xs text-slate-500 ml-1">{statusLine}</span>
-        <span className="text-slate-500 text-xs ml-auto">{open ? "▲" : "▼"}</span>
-      </button>
-
-      {open && (
-        <div className="border-t border-surface-600 px-5 py-5 space-y-5">
+    <div ref={cardRef} className="bg-violet-500/5 border border-violet-500/40 rounded-xl px-5 py-5 space-y-5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-violet-400 text-sm" aria-hidden="true">✦</span>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-violet-300">HIGASHI LIVE</h2>
+        <span className="text-xs text-slate-400 sm:ml-auto">{statusLine}</span>
+      </div>
+      <p className="text-sm text-slate-200">The key from your Higashi Live email goes here. It is not an AI key.</p>
+      <div className="space-y-5">
           <p className="text-xs text-slate-500 leading-relaxed">
             Higashi Live checks whether this is normal for a site your size and tells you when
             something changes.{" "}
@@ -126,28 +137,38 @@ function LiveSettingsPanel({ forceOpen }) {
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
               <span>Live key configured</span>
               <button onClick={handleRemove} className="text-slate-600 hover:text-red-400 ml-2">Remove</button>
+              {saved && <button disabled className="ml-auto px-4 py-2 bg-violet-600 text-white text-sm rounded-lg">Saved ✓</button>}
             </div>
           ) : (
-            <div className="flex gap-2">
-              <input
-                type="password"
-                value={keyInput}
-                onChange={(e) => setKeyInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                placeholder="Live key…"
-                autoComplete="off"
-                className="flex-1 bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500/60 font-mono"
-              />
-              <button
-                onClick={handleSave}
-                disabled={saving || !keyInput.trim()}
-                className="px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
-              >
-                {saving ? "Saving…" : "Save"}
-              </button>
+            <div>
+              <label htmlFor="live-key" className="text-xs text-slate-300 font-medium block mb-1.5">Live key</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  ref={keyRef}
+                  id="live-key"
+                  type="password"
+                  value={keyInput}
+                  onChange={(e) => { setKeyInput(e.target.value); setKeyError(""); setSaved(false); }}
+                  onPaste={(e) => { e.preventDefault(); setKeyInput(e.clipboardData.getData("text").trim()); setKeyError(""); setSaved(false); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" && validKey) handleSave(true); }}
+                  placeholder="hl_…"
+                  autoComplete="off"
+                  aria-invalid={invalidKey || Boolean(keyError)}
+                  aria-describedby="live-key-help live-key-error"
+                  className="w-full min-w-0 flex-1 bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500/60 font-mono"
+                />
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={saving || !validKey}
+                  className="w-full sm:w-auto px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                >
+                  {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
+                </button>
+              </div>
+              <p id="live-key-help" className="text-xs text-slate-500 mt-1.5">46 characters, starts with hl_</p>
             </div>
           )}
-          {saveMsg && <p className="text-xs text-green-400">{saveMsg}</p>}
+          {(invalidKey || keyError) && <p id="live-key-error" role="alert" className="text-xs text-red-400">{keyError || "That is not a Live key — it should start with hl_ and be 46 characters"}</p>}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -185,7 +206,7 @@ function LiveSettingsPanel({ forceOpen }) {
           </div>
 
           {watching && (siteType !== settings?.site_type || aiStance !== (settings?.stance || settings?.ai_stance)) && (
-            <button onClick={handleSave} disabled={saving} className="text-xs text-accent hover:underline">
+            <button onClick={() => handleSave()} disabled={saving} className="text-xs text-accent hover:underline">
               {saving ? "Saving…" : "Save changes to site type / AI stance"}
             </button>
           )}
@@ -208,8 +229,7 @@ function LiveSettingsPanel({ forceOpen }) {
               className="mt-2 w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-violet-500/60"
             />
           </details>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -387,6 +407,7 @@ function AISettingsPanel() {
         )}
         <span className="text-slate-500 text-xs">{open ? "▲" : "▼"}</span>
       </button>
+      <p className="px-5 pb-3 text-xs text-slate-500">Your own model keys. Not the Live key.</p>
 
       {open && (
         <div className="border-t border-surface-600 px-5 py-5 space-y-6">

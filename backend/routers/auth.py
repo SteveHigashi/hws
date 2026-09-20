@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 from database import get_db
 from models.user import User, UserRole
+from models.password_reset import PasswordReset
+from services.password_reset import consume_reset_token, hash_reset_token, reset_mode
 from config import get_settings
 
 router = APIRouter()
@@ -95,3 +97,32 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db), _: U
 @router.get("/me")
 async def me(current_user: User = Depends(get_current_user)):
     return {"id": str(current_user.id), "email": current_user.email, "role": current_user.role}
+
+
+class ForgotRequest(BaseModel):
+    email: str
+
+
+class ResetRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot")
+async def forgot_password(body: ForgotRequest, db: AsyncSession = Depends(get_db)):
+    """Never says whether the address exists. Tells the page how resets work on this
+    install: by a link the server operator creates (`manage_users.py reset-link`) —
+    mail is not something the free product can assume it has."""
+    return {"ok": True, "mode": reset_mode()}
+
+
+@router.post("/reset")
+async def reset_password(body: ResetRequest, db: AsyncSession = Depends(get_db)):
+    if len(body.new_password) < 10:
+        raise HTTPException(status_code=400, detail="Use at least 10 characters")
+    user = await consume_reset_token(db, body.token)
+    if user is None:
+        raise HTTPException(status_code=400, detail="This reset link is not valid any more. Ask for a new one.")
+    user.password_hash = _hash_pw(body.new_password)
+    await db.commit()
+    return {"ok": True, "email": user.email}

@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./hooks/useAuth";
 import Login from "./pages/Login";
+import Forgot from "./pages/Forgot";
+import Reset from "./pages/Reset";
 import Dashboard from "./pages/Dashboard";
 import Setup from "./pages/Setup";
 
@@ -14,6 +16,8 @@ export default function App() {
     <Routes>
       <Route path="/setup" element={<Setup />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot" element={<Forgot />} />
+      <Route path="/reset" element={<Reset />} />
       <Route
         path="/dashboard/*"
         element={

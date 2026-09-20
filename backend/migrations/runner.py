@@ -25,3 +25,8 @@ def apply_migrations(connection) -> None:
     except ImportError:
         return
     upgrade_live_reading_recommendation(connection)
+    try:
+        from migrations.m006_password_resets import upgrade as upgrade_password_resets
+    except ImportError:
+        return
+    upgrade_password_resets(connection)
