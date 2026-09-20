@@ -59,6 +59,7 @@ def _reading_dict(row: LiveReading) -> dict:
         "verdict": row.verdict,
         "changes": row.changes or [],
         "benchmarks": row.benchmarks or [],
+        "recommendation": row.recommendation,
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
@@ -103,6 +104,7 @@ async def watch_site(
         verdict=reading.get("verdict", ""),
         changes=reading.get("changes", []),
         benchmarks=reading.get("benchmarks", []),
+        recommendation=reading.get("recommendation"),
     )
     db.add(row)
     await db.commit()

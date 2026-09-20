@@ -111,9 +111,33 @@ class ReportIn(StrictModel):
         return self
 
 
+ACTIONS = ("none", "observe", "robots", "rate_rule", "block_rule")
+ACTION_LABELS = {
+    "none": "No action",
+    "observe": "Watch for a week",
+    "robots": "Ask crawlers to stay out (robots.txt)",
+    "rate_rule": "Slow the pattern down (rate rule)",
+    "block_rule": "Refuse the pattern (block rule)",
+}
+
+
+class Recommendation(StrictModel):
+    """What a safe next step could be, if any. The rules set `action`'s maximum
+    (see deterministic.max_action); a model may write `reason`, never raise `action`."""
+    action: Literal["none", "observe", "robots", "rate_rule", "block_rule"]
+    reason: str = Field(min_length=1, max_length=600)
+    confidence: Literal["low", "medium", "high"]
+    scope: list[str] = Field(default_factory=list, max_length=10)        # section names, never paths
+    exclusions: list[str] = Field(default_factory=list, max_length=20)   # who must never be caught by the rule
+    observe_days: int = Field(default=0, ge=0, le=90)
+    rollback: str = Field(default="", max_length=300)
+    do_not_use_if: list[str] = Field(default_factory=list, max_length=10)
+
+
 class ReadingBody(StrictModel):
     headline: str
     paragraphs: list[str]
     verdict: str
     changes: list[str]
     benchmarks: list[str]
+    recommendation: Recommendation | None = None

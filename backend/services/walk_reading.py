@@ -16,6 +16,7 @@ from higashi_reading import (
     SYSTEM_PROMPT,
     constrain_model_reading,
     deterministic_reading,
+    max_action,
     no_comparison_notes,
     parse_model_json,
 )
@@ -48,6 +49,7 @@ async def byok_reading(report: dict, model: str, api_keys: dict) -> tuple[Readin
         "changes": [],
         "qualified_benchmarks": [],
         "unavailable_benchmarks": no_comparison_notes(parsed_report),
+        "max_action": max_action(parsed_report),
     }
     try:
         text, _in, _out = await call_model(model, SYSTEM_PROMPT, json.dumps(context, separators=(",", ":")), api_keys)

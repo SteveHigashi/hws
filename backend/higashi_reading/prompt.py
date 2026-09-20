@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .deterministic import robots_paragraph
+from .deterministic import clamp_recommendation, max_action, robots_paragraph
 from .schemas import ReadingBody, ReportIn
 
 SYSTEM_PROMPT = """You write the weekly Higashi Live reading from aggregate counts only.
@@ -21,7 +21,9 @@ Use only supplied benchmark text. Every compared number must state the typical v
 
 Use walk wording exactly: "Catalogue walk detected", "Suspicious", "No walk detected", or "Insufficient data". No walk detected does not prove copying did not happen. Call weak signals weak. Preserve the supplied changes exactly.
 
-JSON shape: {"headline":"...","paragraphs":["..."],"verdict":"...","changes":["..."],"benchmarks":["..."]}."""
+Also return "recommendation": {"action": one of none | observe | robots | rate_rule | block_rule, "reason": one or two sentences, "confidence": low | medium | high}. The context gives "max_action": you may choose that action or a weaker one, never a stronger one. Say what the step would change, what it would not, and that the owner applies it, not Higashi.
+
+JSON shape: {"headline":"...","paragraphs":["..."],"verdict":"...","changes":["..."],"benchmarks":["..."],"recommendation":{"action":"...","reason":"...","confidence":"..."}}."""
 
 
 def parse_model_json(text: str) -> dict[str, Any] | None:
@@ -56,4 +58,6 @@ def constrain_model_reading(
         return fallback
     if sum(len(value.split()) for value in [reading.headline, reading.verdict, *reading.paragraphs, *reading.changes, *reading.benchmarks]) > 250:
         return fallback
+    # The rules set the ceiling; the model keeps its reason only under it.
+    reading.recommendation = clamp_recommendation(reading.recommendation, report)
     return reading

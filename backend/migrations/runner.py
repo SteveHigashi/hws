@@ -20,3 +20,8 @@ def apply_migrations(connection) -> None:
     except ImportError:
         return
     upgrade_session_quality(connection)
+    try:
+        from migrations.m005_live_reading_recommendation import upgrade as upgrade_live_reading_recommendation
+    except ImportError:
+        return
+    upgrade_live_reading_recommendation(connection)

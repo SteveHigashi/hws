@@ -9,6 +9,39 @@ import { useSiteStore } from "../../store/siteStore";
 // Higashi Live's reading with history and comparisons. The eyebrow names who
 // wrote it. "Watch this site" asks Live for a fresh reading (or routes to the
 // Live card in Intelligence when there is no key yet).
+
+const ACTION_LABELS = {
+  none: "No action",
+  observe: "Watch for a week",
+  robots: "Ask crawlers to stay out (robots.txt)",
+  rate_rule: "Slow the pattern down (rate rule)",
+  block_rule: "Refuse the pattern (block rule)",
+};
+
+// The safe next step, if any. The rules set the strongest action allowed by the
+// evidence; whoever wrote the prose could not raise it. Higashi never applies it.
+function Recommendation({ rec }) {
+  return (
+    <div className="border-t border-violet-500/20 pt-4 space-y-2">
+      <p className="text-xs text-slate-500 uppercase tracking-wider">Safe next step</p>
+      <p className="text-base text-white font-medium">{ACTION_LABELS[rec.action] || rec.action}
+        <span className="text-xs text-slate-500 font-normal ml-2">confidence: {rec.confidence}</span>
+      </p>
+      <p className="text-sm text-slate-300 leading-relaxed">{rec.reason}</p>
+      {rec.action !== "none" && (
+        <ul className="text-xs text-slate-400 space-y-1">
+          {rec.scope?.length > 0 && <li><span className="text-slate-500">Where:</span> {rec.scope.join(", ")}</li>}
+          {rec.exclusions?.length > 0 && <li><span className="text-slate-500">Never caught by it:</span> {rec.exclusions.join(", ")}</li>}
+          {rec.observe_days > 0 && <li><span className="text-slate-500">Try it for:</span> {rec.observe_days} days first</li>}
+          {rec.rollback && <li><span className="text-slate-500">To undo:</span> {rec.rollback}</li>}
+          {rec.do_not_use_if?.length > 0 && <li><span className="text-slate-500">Skip it if:</span> {rec.do_not_use_if.join("; ")}</li>}
+          <li className="text-slate-500">You apply it, on your server or panel. Higashi never changes your traffic.</li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function WatchThisSite() {
   const navigate = useNavigate();
   const { currentSiteId } = useSiteStore();
@@ -100,6 +133,8 @@ export default function WatchThisSite() {
               </ul>
             </div>
           )}
+
+          {reading.recommendation && <Recommendation rec={reading.recommendation} />}
 
           {reading.benchmarks?.length > 0 && (
             <div>

@@ -5,7 +5,7 @@ the ceiling) and Higashi Live. No database, no network.
 """
 from __future__ import annotations
 
-from .schemas import ReadingBody, ReportIn
+from .schemas import ACTIONS, ReadingBody, Recommendation, ReportIn
 
 
 SEARCH_CRAWLERS = {"googlebot", "bingbot", "duckduckbot", "applebot"}
@@ -156,4 +156,115 @@ def deterministic_reading(
         verdict=walk,
         changes=changes,
         benchmarks=benchmarks,
+        recommendation=deterministic_recommendation(report),
     )
+
+
+# ---------------------------------------------------------------------------
+# Recommendation policy. The evidence sets the most that may be recommended;
+# nothing downstream (a model, a template) can raise it. Every action is small
+# and reversible, and Higashi never applies any of them itself.
+# ---------------------------------------------------------------------------
+
+def action_rank(action: str) -> int:
+    return ACTIONS.index(action)
+
+
+def _training_crawlers(report: ReportIn) -> list[str]:
+    return [n for n in _names(report.crawlers) if n.casefold() not in SEARCH_CRAWLERS]
+
+
+def max_action(report: ReportIn) -> str:
+    """The ceiling: the strongest action the evidence in this report allows."""
+    walk = report.walk
+    if walk.verdict == "Insufficient data":
+        return "none"
+    if walk.verdict == "Catalogue walk detected":
+        if walk.records_taken_estimate <= 0:
+            return "observe"
+        return "rate_rule" if walk.distributed_signal else "block_rule"
+    if walk.verdict == "Suspicious":
+        return "robots" if walk.records_taken_estimate > 0 else "observe"
+    # No walk detected: the only thing left to recommend is a robots.txt request,
+    # and only when the owner has said training crawlers are unwelcome.
+    if report.ai_stance in ("search_only", "block_all") and _training_crawlers(report):
+        return "robots"
+    if any(c.verified == "forged" for c in report.crawlers):
+        return "observe"
+    return "none"
+
+
+_ROLLBACK = {
+    "none": "",
+    "observe": "Nothing to undo: watching changes nothing.",
+    "robots": "Remove the lines from robots.txt; crawlers that honour it return on their next visit.",
+    "rate_rule": "Delete the rate rule; traffic returns to normal on the next request.",
+    "block_rule": "Delete the block rule; the addresses can reach the site again immediately.",
+}
+
+
+def deterministic_recommendation(report: ReportIn) -> Recommendation:
+    """The rules' own recommendation, always at or below the ceiling (it *is* the ceiling)."""
+    action = max_action(report)
+    walk = report.walk
+    training = _training_crawlers(report)
+    search = [n for n in _names(report.crawlers) if n.casefold() in SEARCH_CRAWLERS]
+    exclusions = ["verified search crawlers" + (f" ({', '.join(search)})" if search else ""), "signed-in users", "sitemap and feed fetchers"]
+    do_not = ["you are not sure which pages the pattern touched", "a CDN or firewall already applies a rule for this"]
+
+    if action == "none":
+        if walk.verdict == "Insufficient data":
+            reason = "There is not enough evidence yet. Too few full content responses were seen to judge, so nothing should change."
+        else:
+            reason = "Nothing in this report calls for a change. Search crawlers are welcome under your settings and no copying pattern was seen."
+        return Recommendation(action="none", reason=reason, confidence="high" if walk.verdict != "Insufficient data" else "low",
+                              scope=[], exclusions=[], observe_days=0, rollback="", do_not_use_if=[])
+
+    if action == "observe":
+        if walk.verdict == "Suspicious":
+            reason = "The signals are weak and no records appear to have been taken. Watch for a week before changing anything."
+            confidence = "low"
+        elif walk.verdict == "Catalogue walk detected":
+            reason = "A walk shape was seen but the record estimate is zero, so the evidence does not yet justify a rule. Watch for a week."
+            confidence = "medium"
+        else:
+            reason = "Some crawlers claimed to be search engines and were not. They took nothing measurable; watch for a week before acting."
+            confidence = "medium"
+        return Recommendation(action="observe", reason=reason, confidence=confidence, scope=["catalogue and listing pages"],
+                              exclusions=exclusions, observe_days=7, rollback=_ROLLBACK["observe"], do_not_use_if=[])
+
+    if action == "robots":
+        names = training or _names(report.crawlers)
+        reason = (f"Ask {', '.join(names)} to stay out with robots.txt. It is a request, not a wall: honest crawlers honour it, "
+                  "some ignore it, and it changes nothing for search or for people.")
+        return Recommendation(action="robots", reason=reason, confidence="high", scope=["whole site"],
+                              exclusions=exclusions, observe_days=0, rollback=_ROLLBACK["robots"],
+                              do_not_use_if=["you rely on one of these crawlers for discovery"])
+
+    if action == "rate_rule":
+        reason = (f"About {walk.records_taken_estimate:,} records were taken by a pattern spread across many addresses, so blocking "
+                  "single addresses would not help. A rate rule on the catalogue pages slows the pattern without touching normal visitors.")
+        return Recommendation(action="rate_rule", reason=reason, confidence="high", scope=["catalogue and listing pages"],
+                              exclusions=exclusions, observe_days=7, rollback=_ROLLBACK["rate_rule"], do_not_use_if=do_not)
+
+    reason = (f"About {walk.records_taken_estimate:,} records were taken at {walk.per_address_rate:,.1f} requests per address per day "
+              "from a small set of addresses. A block rule for that pattern on the catalogue pages is the smallest step that stops it; "
+              "keep it narrow and keep the exclusions.")
+    return Recommendation(action="block_rule", reason=reason, confidence="high", scope=["catalogue and listing pages"],
+                          exclusions=exclusions, observe_days=7, rollback=_ROLLBACK["block_rule"], do_not_use_if=do_not)
+
+
+def clamp_recommendation(candidate: Recommendation | None, report: ReportIn) -> Recommendation:
+    """A recommendation from any other source (a model) may keep its reason only while
+    its action stays at or below the ceiling; everything structural comes from the rules."""
+    ours = deterministic_recommendation(report)
+    if candidate is None:
+        return ours
+    if action_rank(candidate.action) > action_rank(ours.action):
+        return ours
+    reason = candidate.reason.strip()
+    if not reason or len(reason.split()) > 80:
+        return ours
+    return ours.model_copy(update={"action": candidate.action, "reason": reason,
+                                   "rollback": _ROLLBACK[candidate.action],
+                                   "observe_days": ours.observe_days if candidate.action != "none" else 0})

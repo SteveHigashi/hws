@@ -18,4 +18,5 @@ class LiveReading(Base):
     verdict = Column(String(256), nullable=False)
     changes = Column(JSON, nullable=False, default=list)
     benchmarks = Column(JSON, nullable=False, default=list)
+    recommendation = Column(JSON, nullable=True)  # m005
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)

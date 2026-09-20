@@ -8,7 +8,11 @@ from .deterministic import (  # noqa: F401
     AI_SEARCH_CAVEAT,
     KNOWN_ROBOTS_IGNORERS,
     SEARCH_CRAWLERS,
+    action_rank,
     changes_between,
+    clamp_recommendation,
+    deterministic_recommendation,
+    max_action,
     deterministic_reading,
     headline,
     no_comparison_notes,
@@ -16,4 +20,4 @@ from .deterministic import (  # noqa: F401
     size_bucket,
 )
 from .prompt import SYSTEM_PROMPT, constrain_model_reading, parse_model_json  # noqa: F401
-from .schemas import Crawler, GeoResult, ReadingBody, ReportIn, StrictModel, Walk  # noqa: F401
+from .schemas import ACTION_LABELS, ACTIONS, Crawler, GeoResult, ReadingBody, Recommendation, ReportIn, StrictModel, Walk  # noqa: F401
