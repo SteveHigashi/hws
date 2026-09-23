@@ -115,3 +115,28 @@ def refused_classes(report) -> frozenset[str]:
 def legacy_value(stance: str) -> str:
     """The three-way value an older Live schema or key expects for a five-way stance."""
     return STANCES.get(stance, STANCES["allow_all"])["legacy"]
+
+
+# The internal values are plumbing. A customer must never read one in a reading, so
+# the model is handed labels instead and `prompt.py` refuses prose containing these.
+# "found" is deliberately absent: it is a legacy value and also an ordinary English
+# word ("Higashi found 900 visits"), so matching it would reject correct prose.
+RAW_STANCE_TOKENS = (
+    "allow_all", "refuse_training_seo", "refuse_training", "keep_search_only",
+    "refuse_all", "search_only", "block_all",
+)
+
+
+def stance_context(report) -> dict:
+    """What the model is told about the owner's choice — labels and classes, no enums."""
+    stance = STANCES[stance_of(report)]
+    refuses = [CLASS_LABELS[c] for c in CLASSES if c in stance["refuses"]]
+    allows = [CLASS_LABELS[c] for c in CLASSES if c not in stance["refuses"]]
+    return {
+        "chose": stance["label"],
+        "means": stance["does"],
+        "does_not_mean": stance["does_not"],
+        "what_it_costs": stance["cost"],
+        "refuses": refuses or ["nothing — every class is allowed"],
+        "allows": allows or ["nothing — every class is refused"],
+    }

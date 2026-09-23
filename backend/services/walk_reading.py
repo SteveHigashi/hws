@@ -15,6 +15,7 @@ from higashi_reading import (
     ReportIn,
     SYSTEM_PROMPT,
     constrain_model_reading,
+    model_context,
     deterministic_reading,
     max_action,
     no_comparison_notes,
@@ -44,13 +45,7 @@ async def byok_reading(report: dict, model: str, api_keys: dict) -> tuple[Readin
     provider = get_provider(model)
     if not api_keys.get(provider):
         return fallback, "local", f"No {provider} key is set on this install; showing the rule-based reading."
-    context = {
-        "report": parsed_report.model_dump(mode="json"),
-        "changes": [],
-        "qualified_benchmarks": [],
-        "unavailable_benchmarks": no_comparison_notes(parsed_report),
-        "max_action": max_action(parsed_report),
-    }
+    context = model_context(parsed_report, [], [], no_comparison_notes(parsed_report))
     try:
         text, _in, _out = await call_model(model, SYSTEM_PROMPT, json.dumps(context, separators=(",", ":")), api_keys)
     except Exception as exc:  # the customer's key, quota or network — never a 500 on the dashboard

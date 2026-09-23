@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .crawlers import RAW_STANCE_TOKENS, stance_context
 from .deterministic import clamp_recommendation, max_action, robots_paragraph
 from .schemas import ReadingBody, ReportIn
 
@@ -15,7 +16,7 @@ SYSTEM_PROMPT = """You write the weekly Higashi Live reading from aggregate coun
 
 Use high-school English and short sentences. Never use the words "leverage" or "insights". Do not use markdown headers. Keep all prose under 250 words. Return only valid JSON with: headline, paragraphs, verdict, changes, benchmarks.
 
-The headline is the verdict. If the owner wants to be found, lead with GEO mentions and citations, then say which crawlers may help discovery. If the owner chose block_all, lead with the AI crawlers that came, include a valid robots.txt block for them, and name crawlers known to ignore robots.txt. Never claim that Live blocked, stopped, or sits in front of traffic. If the owner chose search_only, treat search crawlers as acceptable and list AI training crawlers to block.
+The headline is the verdict. The context gives "stance": what the owner chose, in "chose", with "means", "does_not_mean", "refuses" and "allows". Write about the owner's choice using the "chose" wording and those class names — "training crawlers", "search crawlers", "answer fetchers", "SEO tools". Never print an internal value such as search_only, block_all or refuse_training; they are plumbing and mean nothing to the reader. If the stance refuses nothing, lead with GEO mentions and citations, then say which crawlers may help discovery. Otherwise lead with the refused crawlers that came anyway, include a valid robots.txt block for exactly those, and name any known to ignore robots.txt. Say what the choice does not do when it matters, using "does_not_mean". Never claim that Live blocked, stopped, or sits in front of traffic.
 
 Use only supplied benchmark text. Every compared number must state the typical value. When a comparison is unavailable, say "not enough sites yet to compare". Never invent a typical value.
 
@@ -35,6 +36,39 @@ def parse_model_json(text: str) -> dict[str, Any] | None:
         return value if isinstance(value, dict) else None
     except (ValueError, TypeError):
         return None
+
+
+def model_context(report: ReportIn, changes: list[str], qualified: list[str], unavailable: list[str]) -> dict:
+    """What the model is shown. The raw stance values are replaced by their labels here,
+    so a leak needs the model to invent the word rather than copy it out of its input."""
+    dumped = report.model_dump(mode="json")
+    dumped.pop("ai_stance", None)
+    dumped.pop("stance", None)
+    return {
+        "report": dumped,
+        "stance": stance_context(report),
+        "changes": changes,
+        "qualified_benchmarks": qualified,
+        "unavailable_benchmarks": unavailable,
+        "max_action": max_action(report),
+    }
+
+
+def raw_stance_token_in(reading: ReadingBody) -> str | None:
+    """The internal stance value a reading leaked, if any.
+
+    Asking the model not to print them is not a control; this is. A reading that names
+    one is refused whole and the deterministic reading is served instead.
+    """
+    prose = " ".join([reading.headline, reading.verdict, *reading.paragraphs,
+                      *reading.changes, *reading.benchmarks,
+                      (reading.recommendation or {}).get("reason", "")
+                      if isinstance(reading.recommendation, dict)
+                      else getattr(reading.recommendation, "reason", "") or ""]).casefold()
+    for token in RAW_STANCE_TOKENS:
+        if token in prose:
+            return token
+    return None
 
 
 def constrain_model_reading(
@@ -57,6 +91,8 @@ def constrain_model_reading(
     if any("live" in p.casefold() and any(word in p.casefold() for word in (" blocked", " blocks", " stopped", " stops")) for p in reading.paragraphs):
         return fallback
     if sum(len(value.split()) for value in [reading.headline, reading.verdict, *reading.paragraphs, *reading.changes, *reading.benchmarks]) > 250:
+        return fallback
+    if raw_stance_token_in(reading):
         return fallback
     # The rules set the ceiling; the model keeps its reason only under it.
     reading.recommendation = clamp_recommendation(reading.recommendation, report)

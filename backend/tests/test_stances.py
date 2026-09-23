@@ -110,3 +110,82 @@ class LegacyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── no customer ever reads an internal stance value ──────────────────────────
+import json  # noqa: E402
+
+from higashi_reading import (  # noqa: E402
+    RAW_STANCE_TOKENS, SYSTEM_PROMPT, ReadingBody, constrain_model_reading,
+    model_context, raw_stance_token_in, stance_context,
+)
+
+
+def reading_saying(text):
+    return ReadingBody.model_validate({
+        "headline": "Nothing unusual this week", "paragraphs": [text],
+        "verdict": "No walk detected", "changes": [], "benchmarks": [],
+    })
+
+
+class StanceStaysInternalTests(unittest.TestCase):
+    """`search_only` in a reading is jargon the reader cannot act on.
+
+    Two defences, because asking a model nicely is not a control: the values are
+    stripped from what the model is shown, and a reading naming one is refused.
+    Remove either and a test here fails.
+    """
+
+    def test_the_context_shown_to_the_model_contains_no_internal_value(self):
+        for stance in STANCES:
+            blob = json.dumps(model_context(report(stance, legacy_value(stance)), [], [], [])).casefold()
+            for token in RAW_STANCE_TOKENS:
+                self.assertNotIn(token, blob, f"{token} leaked into the model context for {stance}")
+
+    def test_the_context_carries_the_approved_label_instead(self):
+        for stance, spec in STANCES.items():
+            ctx = model_context(report(stance, legacy_value(stance)), [], [], [])
+            self.assertEqual(ctx["stance"]["chose"], spec["label"])
+            self.assertEqual(ctx["stance"]["does_not_mean"], spec["does_not"])
+
+    def test_a_reading_naming_an_internal_value_is_refused(self):
+        r = report("refuse_training", "search_only")
+        fallback = deterministic_reading(r)
+        leaked = reading_saying("Your site chose search_only, so training crawlers are refused.")
+        self.assertEqual(raw_stance_token_in(leaked), "search_only")
+        self.assertIs(constrain_model_reading(leaked, fallback, r, [], []), fallback)
+
+    def test_every_internal_value_is_caught(self):
+        r = report("refuse_training", "search_only")
+        fallback = deterministic_reading(r)
+        for token in RAW_STANCE_TOKENS:
+            leaked = reading_saying(f"The owner picked {token} this week.")
+            self.assertIs(constrain_model_reading(leaked, fallback, r, [], []), fallback, token)
+
+    def test_the_word_found_is_ordinary_prose_and_is_not_refused(self):
+        """`found` is a legacy value and an English word; banning it would reject good prose."""
+        r = report("allow_all", "found")
+        fallback = deterministic_reading(r)
+        fine = reading_saying("Higashi found 900 visits from training crawlers this week.")
+        self.assertIsNone(raw_stance_token_in(fine))
+        self.assertIsNot(constrain_model_reading(fine, fallback, r, [], []), fallback)
+
+    def test_the_approved_labels_survive_the_ban(self):
+        """The labels must not themselves trip the check that protects them."""
+        r = report("refuse_training", "search_only")
+        fallback = deterministic_reading(r)
+        for spec in STANCES.values():
+            self.assertIsNone(raw_stance_token_in(reading_saying(f"You chose: {spec['label']}.")), spec["label"])
+        self.assertIsNot(constrain_model_reading(
+            reading_saying("You chose Refuse training crawlers."), fallback, r, [], []), fallback)
+
+    def test_the_prompt_tells_the_model_the_vocabulary_and_forbids_the_values(self):
+        self.assertIn("stance", SYSTEM_PROMPT)
+        self.assertIn("training crawlers", SYSTEM_PROMPT)
+        self.assertIn("Never print an internal value", SYSTEM_PROMPT)
+
+    def test_stance_context_names_what_is_refused_and_what_is_allowed(self):
+        ctx = stance_context(report("keep_search_only", "block_all"))
+        self.assertIn("search crawlers", ctx["allows"])
+        self.assertIn("training crawlers", ctx["refuses"])
+        self.assertNotIn("search crawlers", ctx["refuses"])
