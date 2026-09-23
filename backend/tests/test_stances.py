@@ -116,8 +116,9 @@ if __name__ == "__main__":
 import json  # noqa: E402
 
 from higashi_reading import (  # noqa: E402
-    RAW_STANCE_TOKENS, SYSTEM_PROMPT, ReadingBody, constrain_model_reading,
-    model_context, raw_stance_token_in, stance_context,
+    ENFORCEMENT_CLAIMS, RAW_STANCE_TOKENS, SYSTEM_PROMPT, ReadingBody,
+    constrain_model_reading, enforcement_claim_in, model_context, raw_stance_token_in,
+    stance_context,
 )
 
 
@@ -189,3 +190,88 @@ class StanceStaysInternalTests(unittest.TestCase):
         self.assertIn("search crawlers", ctx["allows"])
         self.assertIn("training crawlers", ctx["refuses"])
         self.assertNotIn("search crawlers", ctx["refuses"])
+
+
+class ReadingShapeTests(unittest.TestCase):
+    """Three defects the 2026-09-23 Live deploy printed, each with the real text.
+
+    The model is asked for prose; it is not the authority on the verdict, on what the
+    headline is for, or on what Higashi does to a crawler. Remove any one of the three
+    controls in prompt.py and a test here fails.
+    """
+
+    def setUp(self):
+        self.report = report("refuse_training", "search_only")
+        self.fallback = deterministic_reading(self.report)
+
+    def reading(self, **over):
+        body = {"headline": "GPTBot took 420 records this week", "paragraphs": ["Plain prose."],
+                "verdict": "Suspicious", "changes": [], "benchmarks": []}
+        body.update(over)
+        return ReadingBody.model_validate(body)
+
+    # 1 — the verdict is data
+    def test_a_sentence_in_the_verdict_is_replaced_by_the_walk_verdict(self):
+        wordy = self.reading(verdict="Suspicious activity detected from training crawler. "
+                                     "Owner refuses training crawlers while allowing search.")
+        out = constrain_model_reading(wordy, self.fallback, self.report, [], [])
+        self.assertEqual(out.verdict, self.report.walk.verdict)
+
+    def test_the_verdict_is_always_one_of_the_four(self):
+        allowed = {"Catalogue walk detected", "Suspicious", "No walk detected", "Insufficient data"}
+        for invented in ("Suspicious-ish", "All clear!", "", "Suspicious activity detected"):
+            out = constrain_model_reading(self.reading(verdict=invented), self.fallback, self.report, [], [])
+            self.assertIn(out.verdict, allowed)
+
+    # 2 — the headline is the finding, not the setting
+    def test_the_prompt_forbids_a_headline_that_is_the_owners_own_setting(self):
+        self.assertIn("Never make the headline the owner's own setting", SYSTEM_PROMPT)
+        self.assertIn("what happened this week", SYSTEM_PROMPT)
+
+    # 3 — nothing is enforced
+    def test_the_promise_that_a_crawler_cannot_fetch_is_refused(self):
+        leaked = self.reading(paragraphs=[
+            "The owner chose to refuse training crawlers. This means GPTBot, ClaudeBot, "
+            "Bytespider and CCBot will not be able to fetch pages."])
+        self.assertEqual(enforcement_claim_in(leaked), "will not be able to")
+        self.assertIs(constrain_model_reading(leaked, self.fallback, self.report, [], []), self.fallback)
+
+    def test_every_enforcement_claim_is_caught_wherever_it_appears(self):
+        for claim in ENFORCEMENT_CLAIMS:
+            for where in ("headline", "paragraphs", "recommendation"):
+                if where == "paragraphs":
+                    r = self.reading(paragraphs=[f"GPTBot {claim} the site."])
+                elif where == "headline":
+                    r = self.reading(headline=f"GPTBot {claim} the site")
+                else:
+                    r = self.reading(recommendation={"action": "robots",
+                                                     "reason": f"GPTBot {claim} the site.",
+                                                     "confidence": "low"})
+                self.assertIs(constrain_model_reading(r, self.fallback, self.report, [], []),
+                              self.fallback, f"{claim} in {where}")
+
+    def test_honest_conditional_wording_is_kept(self):
+        """"Where you enforce it" is the true sentence and must survive the check."""
+        for good in ("You can refuse training crawlers in robots.txt.",
+                     "Where you enforce the refusal, training crawlers cannot fetch those pages.",
+                     "The rule would ask them not to fetch; a crawler that ignores robots.txt keeps coming."):
+            r = self.reading(paragraphs=[good])
+            self.assertIsNone(enforcement_claim_in(r), good)
+
+    def test_the_prompt_says_nothing_is_enforced(self):
+        self.assertIn("Nothing here is enforced", SYSTEM_PROMPT)
+        self.assertIn("where you enforce it", SYSTEM_PROMPT)
+
+    def test_a_qualifier_elsewhere_does_not_excuse_an_unqualified_claim(self):
+        """Judged per sentence. One honest sentence must not license a false one."""
+        mixed = self.reading(paragraphs=[
+            "Where you enforce the refusal, training crawlers cannot fetch those pages.",
+            "GPTBot will not be able to fetch pages.",
+        ])
+        self.assertEqual(enforcement_claim_in(mixed), "will not be able to")
+        self.assertIs(constrain_model_reading(mixed, self.fallback, self.report, [], []), self.fallback)
+
+    def test_a_qualified_claim_survives_constrain_not_just_the_helper(self):
+        honest = self.reading(paragraphs=[
+            "Where you enforce the refusal, training crawlers cannot fetch those pages."])
+        self.assertIsNot(constrain_model_reading(honest, self.fallback, self.report, [], []), self.fallback)

@@ -33,5 +33,8 @@ from .crawlers import (  # noqa: F401
     stance_context,
     stance_of,
 )
-from .prompt import SYSTEM_PROMPT, constrain_model_reading, model_context, parse_model_json, raw_stance_token_in  # noqa: F401
+from .prompt import (  # noqa: F401
+    ENFORCEMENT_CLAIMS, ENFORCEMENT_QUALIFIERS, SYSTEM_PROMPT, constrain_model_reading, enforcement_claim_in,
+    model_context, parse_model_json, raw_stance_token_in,
+)
 from .schemas import ACTION_LABELS, ACTIONS, Crawler, GeoResult, ReadingBody, Recommendation, ReportIn, StrictModel, Walk  # noqa: F401
