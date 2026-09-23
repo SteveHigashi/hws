@@ -41,6 +41,27 @@ export const STAT_COPY = {
     excludes: "Sessions already sorted into a traffic class.",
     empty: "There are no sessions waiting to be sorted. New unsorted sessions after an upgrade will appear here briefly.",
   },
+  automated_traffic: {
+    label: "Automated",
+    what: "Every request in the window that came from something other than a person: AI crawlers, search and SEO crawlers, and generic bots.",
+    tells: "How much of what reached your site was a machine. Shown beside the human count on purpose — the comparison is the number that matters.",
+    excludes: "Human sessions, and requests Higashi could not attribute to a named bot.",
+    empty: "Nothing automated reached your site in this period.",
+  },
+  crawler_requests: {
+    label: "Requests",
+    what: "How many times this crawler asked your server for a page in the selected window.",
+    tells: "How hard one actor worked your site. A high count against few pages is re-fetching; a high count across many pages is a walk.",
+    excludes: "Requests for images, scripts and other assets.",
+    empty: "This crawler made no requests in this period.",
+  },
+  crawler_pages_taken: {
+    label: "Pages taken",
+    what: "How many different pages of yours this crawler fetched at least once in the window.",
+    tells: "How much of your site one actor now holds a copy of. Against your total page count, this is the share of your catalogue that left.",
+    excludes: "Repeat fetches of the same page, which are counted under requests instead.",
+    empty: "This crawler fetched no pages in this period.",
+  },
   ai_crawlers: {
     label: "AI Crawlers",
     what: "Visits by named AI crawlers such as GPTBot, ClaudeBot, Bytespider, PerplexityBot, and ChatGPT-User. For bots, one visit means one request.",

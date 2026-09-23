@@ -8,6 +8,8 @@ import InsightsFeed from "../components/charts/InsightsFeed";
 import RealtimeFeed from "../components/charts/RealtimeFeed";
 import api from "../utils/api";
 import { cachedGet, isCached, PRIORITY } from "../utils/dataCache";
+import HeadlineCounts from "../components/overview/HeadlineCounts";
+import WhoFetchedYou from "../components/overview/WhoFetchedYou";
 import { useSiteStore } from "../store/siteStore";
 import Intelligence from "./Intelligence";
 import Account from "./Account";
@@ -254,6 +256,7 @@ function Overview() {
   const [timeseries, setTimeseries] = useState([]);
   const [topPages, setTopPages] = useState([]);
   const [geo, setGeo] = useState([]);
+  const [actors, setActors] = useState([]);
   const [insights, setInsights] = useState([]);
   const [enrichMeta, setEnrichMeta] = useState(null);
   const [enrichLoading, setEnrichLoading] = useState(false);
@@ -274,6 +277,7 @@ function Overview() {
 
     const calls = [
       ["quality", `/analytics/traffic-quality?days=${days}`, PRIORITY.quick, setTrafficQuality],
+      ["actors", `/ai-crawlers/crawlers?days=${days}`, PRIORITY.quick, setActors],
       ["geo", `/analytics/geo?days=${days}`, PRIORITY.quick, setGeo],
       ["trend", `/analytics/timeseries?days=${days}`, PRIORITY.normal, setTimeseries],
       ["pages", `/analytics/top-pages?days=${days}&limit=5&traffic=humans`, PRIORITY.normal, setTopPages],
@@ -352,32 +356,23 @@ function Overview() {
 
       <WatchThisSite />
 
-      {/* Real traffic and its supporting numbers */}
-      <div className="bg-surface-800 border border-surface-600 rounded-xl p-6 glow">
-        <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">
-          <StatTooltip id="real_traffic" value={stats?.real_traffic_estimate}>This is your real traffic</StatTooltip>
-        </p>
-        <p className="text-5xl font-bold text-accent-glow">
-          <StatTooltip id="real_traffic" value={stats?.real_traffic_estimate} showIcon={false}>
-            {stats?.real_traffic_estimate?.toLocaleString() ?? "—"}
-          </StatTooltip>
-        </p>
-        <p className="text-sm text-slate-400 mt-2">
-          real visitors in the last {days} days &nbsp;&middot;&nbsp; average time spent:{" "}
-          <StatTooltip id="avg_time_spent" value={stats?.avg_session_duration} showIcon={false}>
-            {formatDuration(stats?.avg_session_duration)}
-          </StatTooltip>
-        </p>
-        <p className="text-xs text-slate-600 mt-1">
-          <StatTooltip id="verified_humans" value={stats?.verified_humans} showIcon={false}>{stats?.verified_humans?.toLocaleString() ?? "—"} verified</StatTooltip>
-          {" + "}
-          <StatTooltip id="likely_humans" value={stats?.likely_humans} showIcon={false}>{stats?.likely_humans?.toLocaleString() ?? "—"} likely</StatTooltip>
-          {", confidence: "}
-          <StatTooltip id="traffic_confidence" value={stats?.traffic_confidence} showIcon={false}>{stats?.traffic_confidence || "—"}</StatTooltip>
-          {" · "}
-          <StatTooltip id="raw_sessions" value={stats?.sessions} showIcon={false}>{stats?.sessions?.toLocaleString() ?? "—"} raw sessions before filtering</StatTooltip>
-        </p>
-      </div>
+      {/* Gate 6(c): people and machines as equals, then who fetched you and what they took.
+          Both read from traffic-quality and the crawler breakdown — 1.5 s and 2.2 s — so the
+          first screen is answerable long before the 7 s window scan behind the cards below. */}
+      <HeadlineCounts data={trafficQuality} loading={!ready.quality} />
+
+      <WhoFetchedYou rows={actors} loading={!ready.actors} />
+
+      <p className="text-xs text-slate-500">
+        In the last {days} days · average time spent{" "}
+        <StatTooltip id="avg_time_spent" value={stats?.avg_session_duration} showIcon={false}>
+          {formatDuration(stats?.avg_session_duration)}
+        </StatTooltip>
+        {" · "}
+        <StatTooltip id="raw_sessions" value={stats?.sessions} showIcon={false}>
+          {stats?.sessions?.toLocaleString() ?? "—"} raw sessions before filtering
+        </StatTooltip>
+      </p>
 
       {/* Stat cards — row 1 */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
