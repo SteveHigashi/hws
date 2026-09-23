@@ -66,7 +66,11 @@ function LiveSettingsPanel({ forceOpen }) {
     keyRef.current?.focus({ preventScroll: true });
   }, [forceOpen]);
 
+  // undefined until one of the two calls answers. Both queue behind the window scans
+  // on a busy box, and a card that says "Not watching" in the meantime — with a key
+  // form under it — reads as a broken install to someone whose key is fine.
   const watching = status?.key_set ?? settings?.live_key_set;
+  const liveChecking = watching === undefined;
   const validKey = /^hl_\S{43}$/.test(keyInput);
   const invalidKey = keyInput.length > 0 && !validKey;
 
@@ -104,11 +108,13 @@ function LiveSettingsPanel({ forceOpen }) {
     refresh();
   };
 
-  const statusLine = watching
-    ? status?.last_reading_at
-      ? `Watching · last reading ${timeAgo(status.last_reading_at)}`
-      : "Watching · no reading yet"
-    : "Not watching";
+  const statusLine = liveChecking
+    ? "Checking…"
+    : watching
+      ? status?.last_reading_at
+        ? `Watching · last reading ${timeAgo(status.last_reading_at)}`
+        : "Watching · no reading yet"
+      : "Not watching";
 
   return (
     <div ref={cardRef} className="bg-violet-500/5 border border-violet-500/40 rounded-xl px-5 py-5 space-y-5">
@@ -132,7 +138,12 @@ function LiveSettingsPanel({ forceOpen }) {
             </a>
           </p>
 
-          {watching ? (
+          {liveChecking ? (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse" />
+              <span>Checking whether this install has a Live key…</span>
+            </div>
+          ) : watching ? (
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
               <span>Live key configured</span>
@@ -146,7 +157,11 @@ function LiveSettingsPanel({ forceOpen }) {
                 <input
                   ref={keyRef}
                   id="live-key"
-                  type="password"
+                  type="text"
+                  name="higashi-live-key"
+                  spellCheck={false}
+                  autoCorrect="off"
+                  autoCapitalize="off"
                   value={keyInput}
                   onChange={(e) => { setKeyInput(e.target.value); setKeyError(""); setSaved(false); }}
                   onPaste={(e) => { e.preventDefault(); setKeyInput(e.clipboardData.getData("text").trim()); setKeyError(""); setSaved(false); }}
@@ -270,11 +285,25 @@ function ReadingProviderPanel() {
     }
   };
 
+  // Until `cfg` arrives we do not know what is configured. Saying "Add a Live key
+  // above first" to someone whose key is already set reads as a broken install, and
+  // on the walk box this endpoint queued for seconds behind the window scans.
+  const checking = cfg === null || cfg === undefined;
   const anyKey = cfg && Object.values(cfg.keys_set || {}).some(Boolean);
   const options = [
     { value: "local", label: "Higashi rules", hint: "Fixed rules on this install. Free. Nothing leaves this box." },
-    { value: "byok", label: "Bring your own AI key", hint: anyKey ? `Your own model key (${cfg?.model}). Still local; the rules stay the ceiling.` : "Add a model key below first." },
-    { value: "live", label: "Use Higashi Live", hint: cfg?.live_key_set ? "History, comparisons to similar sites, weekly email." : "Add a Live key above first." },
+    {
+      value: "byok", label: "Bring your own AI key",
+      hint: checking ? "Checking…" : anyKey
+        ? `Your own model key (${cfg?.model}). Still local; the rules stay the ceiling.`
+        : "Add a model key below first.",
+    },
+    {
+      value: "live", label: "Use Higashi Live",
+      hint: checking ? "Checking…" : cfg?.live_key_set
+        ? "History, comparisons to similar sites, weekly email."
+        : "Add a Live key above first.",
+    },
   ];
 
   return (
@@ -285,7 +314,7 @@ function ReadingProviderPanel() {
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
         {options.map((o) => {
-          const disabled = (o.value === "byok" && !anyKey) || (o.value === "live" && !cfg?.live_key_set);
+          const disabled = checking || (o.value === "byok" && !anyKey) || (o.value === "live" && !cfg?.live_key_set);
           const active = provider === o.value;
           return (
             <button

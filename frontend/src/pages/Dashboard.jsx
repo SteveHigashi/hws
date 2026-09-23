@@ -7,6 +7,7 @@ import TrafficChart from "../components/charts/TrafficChart";
 import InsightsFeed from "../components/charts/InsightsFeed";
 import RealtimeFeed from "../components/charts/RealtimeFeed";
 import api from "../utils/api";
+import { cachedGet, isCached, PRIORITY } from "../utils/dataCache";
 import { useSiteStore } from "../store/siteStore";
 import Intelligence from "./Intelligence";
 import Account from "./Account";
@@ -257,38 +258,49 @@ function Overview() {
   const [enrichMeta, setEnrichMeta] = useState(null);
   const [enrichLoading, setEnrichLoading] = useState(false);
   const [days, setDays] = useState(30);
-  const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState({});   // which panels have their own answer yet
   const [insightsLoading, setInsightsLoading] = useState(true);
   const { currentSiteId } = useSiteStore();
 
+  // Six separate requests, each rendering the moment it lands, cheapest first.
+  //
+  // This was one Promise.all, so nothing appeared until the slowest of the six
+  // finished — 31.7 s on the walk box, with the whole page blank throughout. The
+  // requests are not faster now; they simply stop waiting for each other, and the
+  // 1.5 s call no longer sits behind the 8.8 s one.
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      api.get(`/analytics/overview?days=${days}`),
-      api.get(`/analytics/timeseries?days=${days}`),
-      api.get(`/analytics/top-pages?days=${days}&limit=5&traffic=humans`),
-      api.get(`/analytics/geo?days=${days}`),
-      api.get(`/analytics/traffic-quality?days=${days}`),
-      api.get(`/analytics/suspicious-traffic?days=${days}&limit=8`),
-    ])
-      .then(([ov, ts, pages, geoData, tq, suspicious]) => {
-        setStats(ov.data);
-        setTimeseries(ts.data);
-        setTopPages(pages.data);
-        setGeo(geoData.data);
-        setTrafficQuality(tq.data);
-        setSuspiciousTraffic(suspicious.data);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let live = true;
+    const set = (fn) => (data) => { if (live) fn(data); };
+
+    const calls = [
+      ["quality", `/analytics/traffic-quality?days=${days}`, PRIORITY.quick, setTrafficQuality],
+      ["geo", `/analytics/geo?days=${days}`, PRIORITY.quick, setGeo],
+      ["trend", `/analytics/timeseries?days=${days}`, PRIORITY.normal, setTimeseries],
+      ["pages", `/analytics/top-pages?days=${days}&limit=5&traffic=humans`, PRIORITY.normal, setTopPages],
+      ["stats", `/analytics/overview?days=${days}`, PRIORITY.slow, setStats],
+      ["suspicious", `/analytics/suspicious-traffic?days=${days}&limit=8`, PRIORITY.slow, setSuspiciousTraffic],
+    ];
+
+    // Each panel waits only for its own call. A shared flag would have kept the whole
+    // page on skeletons until the slowest one landed, which is what we just stopped doing.
+    setReady(Object.fromEntries(calls.map(([name, path]) => [name, isCached(path)])));
+
+    Promise.allSettled(
+      calls.map(([name, path, priority, setter]) =>
+        cachedGet(path, { priority })
+          .then(set(setter))
+          .finally(() => { if (live) setReady((r) => ({ ...r, [name]: true })); })
+      )
+    );
+
+    return () => { live = false; };
   }, [days, currentSiteId]);
 
   useEffect(() => {
-    setInsightsLoading(true);
+    setInsightsLoading(!isCached("/intelligence/insights?days=7"));
     setEnrichMeta(null);
-    api
-      .get("/intelligence/insights?days=7")
-      .then(({ data: raw }) => {
+    cachedGet("/intelligence/insights?days=7", { priority: PRIORITY.slow })
+      .then((raw) => {
         const data = Array.isArray(raw) ? raw : [];
         setInsights(data);
         setInsightsLoading(false);
@@ -383,8 +395,8 @@ function Overview() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <TrafficQualityPanel data={trafficQuality} loading={loading} />
-        <ScannerNoisePanel data={suspiciousTraffic} loading={loading} />
+        <TrafficQualityPanel data={trafficQuality} loading={!ready.quality} />
+        <ScannerNoisePanel data={suspiciousTraffic} loading={!ready.suspicious} />
       </div>
 
       {/* Traffic chart */}
@@ -395,7 +407,7 @@ function Overview() {
         <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
           <p className="text-sm font-medium text-slate-300 mb-1">Where your real visitors went</p>
           <p className="text-xs text-slate-500 mb-4">Pages and time spent, real visitors only</p>
-          {loading ? (
+          {!ready.pages ? (
             <p className="text-xs text-slate-500">Loading...</p>
           ) : topPages.length === 0 ? (
             <p className="text-xs text-slate-500">No data yet</p>
@@ -415,7 +427,7 @@ function Overview() {
         </div>
         <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
           <p className="text-sm font-medium text-slate-300 mb-4">Top Countries</p>
-          {loading ? (
+          {!ready.geo ? (
             <p className="text-xs text-slate-500">Loading...</p>
           ) : geo.length === 0 ? (
             <p className="text-xs text-slate-500">No data yet</p>
