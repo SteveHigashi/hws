@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiUrl } from "../../utils/api";
+import { openEventStream } from "../../utils/eventStream";
 
 const DEVICE_ICON = { desktop: "🖥", mobile: "📱", tablet: "📟" };
 
@@ -7,33 +8,32 @@ export default function RealtimeFeed() {
   const [events, setEvents] = useState([]);
   const [connected, setConnected] = useState(false);
 
+  // The token goes in the Authorization header, never the URL. EventSource cannot set
+  // headers, which is why this used to be `?token=<jwt>` — a live admin token written
+  // into journald and the access log, on a stream that 401'd every time because nothing
+  // on the server ever read that parameter.
   useEffect(() => {
     const token = JSON.parse(localStorage.getItem("ha-auth") || "{}")?.state?.token;
     if (!token) return;
     const siteId = JSON.parse(localStorage.getItem("ha-site") || "{}")?.state?.currentSiteId;
-    const qs = siteId ? `&site_id=${siteId}` : "";
+    const qs = siteId ? `?site_id=${encodeURIComponent(siteId)}` : "";
 
-    const es = new EventSource(apiUrl(`/intelligence/realtime?token=${token}${qs}`));
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.length) {
-          setEvents((prev) => {
-            const merged = [...data, ...prev];
-            const seen = new Set();
-            return merged.filter((ev) => {
-              if (seen.has(ev.id)) return false;
-              seen.add(ev.id);
-              return true;
-            }).slice(0, 30);
-          });
-        }
-      } catch {}
-    };
-
-    return () => es.close();
+    return openEventStream(apiUrl(`/intelligence/realtime${qs}`), {
+      token,
+      onOpen: () => setConnected(true),
+      onError: () => setConnected(false),
+      onMessage: (data) => {
+        if (!Array.isArray(data) || data.length === 0) return;
+        setEvents((prev) => {
+          const seen = new Set();
+          return [...data, ...prev].filter((ev) => {
+            if (seen.has(ev.id)) return false;
+            seen.add(ev.id);
+            return true;
+          }).slice(0, 30);
+        });
+      },
+    });
   }, []);
 
   return (

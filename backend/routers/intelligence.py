@@ -173,24 +173,38 @@ async def realtime_stream(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """Server-Sent Events stream of live visitor activity."""
+    """Server-Sent Events stream of live visitor activity.
+
+    Authenticated by the Authorization header like every other route. It used to be
+    called with the session JWT in the query string, because EventSource cannot set
+    headers — which put a live admin token into journald and the nginx access log, and
+    did not even work: nothing here ever read `?token=`, so every connection was a 401.
+    The client uses fetch with the header instead.
+
+    The generator does NOT keep the request's session. FastAPI closes that when the
+    response starts, and a `while True` poll holding a pooled connection for the life of
+    an open browser tab is a connection leaked per viewer. Each pass opens and closes
+    its own short-lived session.
+    """
     site = await _resolve_site(db, site_id)
+    site_pk = site.id if site else None
 
     async def event_stream():
         from datetime import datetime, timedelta
-        last_id = None
+        from database import AsyncSessionLocal
         while True:
             since = datetime.utcnow() - timedelta(seconds=30)
             conds = [Event.timestamp >= since, Event.is_bot == False]
-            if site:
-                conds.append(Event.site_id == site.id)
-            result = await db.execute(
-                select(Event.id, Event.page_url, Event.country, Event.device_type, Event.timestamp)
-                .where(*conds)
-                .order_by(Event.timestamp.desc())
-                .limit(20)
-            )
-            events = result.all()
+            if site_pk is not None:
+                conds.append(Event.site_id == site_pk)
+            async with AsyncSessionLocal() as poll_db:
+                result = await poll_db.execute(
+                    select(Event.id, Event.page_url, Event.country, Event.device_type, Event.timestamp)
+                    .where(*conds)
+                    .order_by(Event.timestamp.desc())
+                    .limit(20)
+                )
+                events = result.all()
             if events:
                 payload = [
                     {
