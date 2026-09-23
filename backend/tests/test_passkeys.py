@@ -25,10 +25,12 @@ from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from webauthn.helpers import bytes_to_base64url  # noqa: E402
 
+import database  # noqa: E402
 import main  # noqa: E402
-from database import AsyncSessionLocal, init_db  # noqa: E402
+from database import Base, get_db  # noqa: E402
 from models.user import User, UserRole  # noqa: E402
 from routers.auth import _hash_pw, create_access_token  # noqa: E402
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402
 
 ORIGIN = "http://localhost"
 
@@ -65,14 +67,35 @@ class SoftAuthenticator:
 
 
 class PasskeyTests(unittest.TestCase):
+    """Bound to its own database.
+
+    Setting DATABASE_URL at import time is not enough: whichever test module imports
+    `database` first builds the engine, and under the full suite that is somebody else's
+    module reading backend/.env — which points at the developer's own higashi.db. This
+    class therefore builds its own engine and overrides get_db, so the result does not
+    depend on collection order and no test ever writes into a real database.
+    """
+
     @classmethod
     def setUpClass(cls):
+        cls._engine = create_async_engine(os.environ["DATABASE_URL"], connect_args={"timeout": 30})
+        cls._sessions = async_sessionmaker(cls._engine, expire_on_commit=False)
+
         async def seed():
-            await init_db()
-            async with AsyncSessionLocal() as db:
+            async with cls._engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with cls._sessions() as db:
                 db.add(User(id=uuid.uuid4(), email="pk@example.test", password_hash=_hash_pw("password-ten"), role=UserRole.admin))
                 await db.commit()
         asyncio.run(seed())
+
+        async def _override():
+            async with cls._sessions() as db:
+                yield db
+        main.app.dependency_overrides[get_db] = _override
+        cls._saved_sessions = database.AsyncSessionLocal
+        database.AsyncSessionLocal = cls._sessions
+
         cls.client = TestClient(main.app, base_url=ORIGIN)
         cls.auth = {"Authorization": "Bearer " + create_access_token({"sub": "pk@example.test", "role": "admin"}), "Origin": ORIGIN}
         cls.key = SoftAuthenticator()
@@ -81,6 +104,12 @@ class PasskeyTests(unittest.TestCase):
         r = cls.client.post("/api/auth/passkeys/register/verify", headers=cls.auth,
                             json={"state": r.json()["state"], "credential": cls.key.register(r.json()["options"]), "name": "test key"})
         assert r.status_code == 200, r.text
+
+    @classmethod
+    def tearDownClass(cls):
+        main.app.dependency_overrides.pop(get_db, None)
+        database.AsyncSessionLocal = cls._saved_sessions
+        asyncio.run(cls._engine.dispose())
 
     def _sign_in(self, count, origin=ORIGIN, claim_origin=ORIGIN):
         r = self.client.post("/api/auth/passkeys/login/options", headers={"Origin": origin}, json={"email": "pk@example.test"})

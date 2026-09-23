@@ -2,7 +2,8 @@
 """Server-side account help for whoever runs this Higashi.
 
   manage_users.py list
-  manage_users.py reset-link <email>      print a one-time reset link (30 minutes)
+  manage_users.py reset-link <email> [--base-url https://dash.example.com]
+                                          print a one-time reset link (30 minutes)
   manage_users.py set-password <email>    type a new password at the prompt (never echoed)
 
 Run from the backend directory with the install's environment, e.g. on the walk box:
@@ -25,11 +26,16 @@ from models.user import User  # noqa: E402
 from services.password_reset import issue_reset_token  # noqa: E402
 
 
-def _base_url() -> str:
+def _base_url(override: str | None = None) -> str:
+    """Where the dashboard is served from — not site_domain, which is a site being tracked."""
+    if override:
+        return override.rstrip("/")
     from config import get_settings
     s = get_settings()
-    domain = getattr(s, "site_domain", "") or ""
-    return f"https://{domain}" if domain else "http://127.0.0.1:8003"
+    for value in (getattr(s, "dashboard_url", "") or "", getattr(s, "site_domain", "") or ""):
+        if value:
+            return value.rstrip("/") if "://" in value else f"https://{value}"
+    return "http://127.0.0.1:8003"
 
 
 async def cmd_list(_args) -> int:
@@ -46,7 +52,7 @@ async def cmd_reset_link(args) -> int:
     if raw is None:
         print("no user with that email", file=sys.stderr)
         return 1
-    print(f"{_base_url()}/#/reset?token={raw}")
+    print(f"{_base_url(getattr(args, 'base_url', None))}/#/reset?token={raw}")
     print("Valid once, for 30 minutes. Open it in a browser and choose a new password.", file=sys.stderr)
     return 0
 
@@ -75,7 +81,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("list").set_defaults(func=cmd_list)
-    p = sub.add_parser("reset-link"); p.add_argument("email"); p.set_defaults(func=cmd_reset_link)
+    p = sub.add_parser("reset-link"); p.add_argument("email")
+    p.add_argument("--base-url", default=None, help="dashboard URL, e.g. https://higashi.jotnotes.com")
+    p.set_defaults(func=cmd_reset_link)
     p = sub.add_parser("set-password"); p.add_argument("email"); p.set_defaults(func=cmd_set_password)
     args = parser.parse_args()
 

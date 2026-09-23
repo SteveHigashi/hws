@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 30  # 30 days — desktop app stays logged in
     first_run: bool = True
     site_domain: str = ""
+    dashboard_url: str = ""   # where the dashboard is served; site_domain is a tracked site, not this
     site_name: str = ""
     admin_email: str = ""
     raw_event_retention_days: int = 90

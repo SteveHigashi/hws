@@ -63,5 +63,49 @@ class ResetTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(await consume_reset_token(db, ""))
 
 
+class BaseUrlTests(unittest.TestCase):
+    """The printed link must point at the dashboard, not at a site being tracked.
+
+    site_domain is whatever domain the operator added during setup (on the walk box:
+    stevenhigashi.com). A reset link built from it hands a live token to an unrelated
+    host. Make _base_url prefer site_domain again and these fail.
+    """
+
+    def _base_url(self, override=None, **settings):
+        import manage_users
+        from types import SimpleNamespace
+        real = manage_users.__dict__.get("get_settings")
+        import config
+        original = config.get_settings
+        config.get_settings = lambda: SimpleNamespace(**settings)
+        try:
+            return manage_users._base_url(override)
+        finally:
+            config.get_settings = original
+            if real is not None:
+                manage_users.get_settings = real
+
+    def test_explicit_override_wins(self):
+        self.assertEqual(
+            self._base_url("https://higashi.jotnotes.com/", dashboard_url="", site_domain="stevenhigashi.com"),
+            "https://higashi.jotnotes.com",
+        )
+
+    def test_dashboard_url_beats_site_domain(self):
+        self.assertEqual(
+            self._base_url(None, dashboard_url="https://higashi.jotnotes.com", site_domain="stevenhigashi.com"),
+            "https://higashi.jotnotes.com",
+        )
+
+    def test_bare_host_gets_https(self):
+        self.assertEqual(
+            self._base_url(None, dashboard_url="higashi.jotnotes.com", site_domain=""),
+            "https://higashi.jotnotes.com",
+        )
+
+    def test_falls_back_to_loopback_when_nothing_is_set(self):
+        self.assertEqual(self._base_url(None, dashboard_url="", site_domain=""), "http://127.0.0.1:8003")
+
+
 if __name__ == "__main__":
     unittest.main()
