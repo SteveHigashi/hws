@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../utils/api";
+import { secretFieldProps } from "../utils/secretField";
 import { useSiteStore } from "../store/siteStore";
 
 // ---------------------------------------------------------------------------
@@ -616,7 +617,8 @@ function SSHPullTab({ defaultDomain }) {
         {authMode === "password" ? (
           <Input type="password" value={form.password}
             onChange={(e) => update("password", e.target.value)}
-            placeholder={hasSavedSecret ? "Saved on the server — leave blank" : "••••••••"} autoComplete="new-password" />
+            placeholder={hasSavedSecret ? "Saved on the server — leave blank" : "••••••••"}
+            {...secretFieldProps("higashi-pull-password")} />
         ) : (
           <Textarea value={form.private_key}
             onChange={(e) => update("private_key", e.target.value)}

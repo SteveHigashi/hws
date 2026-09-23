@@ -125,13 +125,13 @@ export default function Setup() {
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">Password</label>
-                <input type="password" value={form.admin_password} onChange={(e) => update("admin_password", e.target.value)}
+                <input type="password" autoComplete="new-password" value={form.admin_password} onChange={(e) => update("admin_password", e.target.value)}
                   className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent"
                   placeholder="••••••••" />
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">Confirm Password</label>
-                <input type="password" value={form.admin_password_confirm} onChange={(e) => update("admin_password_confirm", e.target.value)}
+                <input type="password" autoComplete="new-password" value={form.admin_password_confirm} onChange={(e) => update("admin_password_confirm", e.target.value)}
                   className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent"
                   placeholder="••••••••" />
               </div>

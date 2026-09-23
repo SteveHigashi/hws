@@ -72,11 +72,16 @@ function LiveSettingsPanel({ forceOpen }) {
   const watching = status?.key_set ?? settings?.live_key_set;
   const liveChecking = watching === undefined;
   const validKey = /^hl_\S{43}$/.test(keyInput);
-  const invalidKey = keyInput.length > 0 && !validKey;
+  // Only complain once the person has actually finished with the field. Judging on
+  // every keystroke meant a browser autofill — or the third character typed — printed
+  // "That is not a Live key" in red under a healthy install.
+  const [keyTouched, setKeyTouched] = useState(false);
+  const invalidKey = keyTouched && keyInput.length > 0 && !validKey;
 
   const handleSave = async (keyRequired = false) => {
     if (saving) return;
     if (keyRequired && !validKey) {
+      setKeyTouched(true);
       setKeyError("That is not a Live key — it should start with hl_ and be 46 characters");
       return;
     }
@@ -92,6 +97,7 @@ function LiveSettingsPanel({ forceOpen }) {
         ai_stance: aiStance,
       });
       setKeyInput("");
+      setKeyTouched(false);
       refresh();
       setSaved(true);
       savedTimer.current = setTimeout(() => setSaved(false), 2000);
@@ -158,12 +164,10 @@ function LiveSettingsPanel({ forceOpen }) {
                   ref={keyRef}
                   id="live-key"
                   type="text"
-                  name="higashi-live-key"
-                  spellCheck={false}
-                  autoCorrect="off"
-                  autoCapitalize="off"
+                  {...secretFieldProps("higashi-live-key")}
                   value={keyInput}
                   onChange={(e) => { setKeyInput(e.target.value); setKeyError(""); setSaved(false); }}
+                  onBlur={() => setKeyTouched(true)}
                   onPaste={(e) => { e.preventDefault(); setKeyInput(e.clipboardData.getData("text").trim()); setKeyError(""); setSaved(false); }}
                   onKeyDown={(e) => { if (e.key === "Enter" && validKey) handleSave(true); }}
                   placeholder="hl_…"
@@ -485,6 +489,7 @@ function AISettingsPanel() {
                   ) : (
                     <input
                       type="password"
+                      {...secretFieldProps(`higashi-${p}-key`)}
                       value={keyInputs[p] || ""}
                       onChange={(e) => setKeyInputs((prev) => ({ ...prev, [p]: e.target.value }))}
                       onKeyDown={(e) => e.key === "Enter" && saveProviderKey(p)}
@@ -640,6 +645,7 @@ function AskChat({ days, currentSiteId }) {
   const isAdmin = role === "admin";
 
   const [aiStatus, setAiStatus] = useState(null); // null=loading, {configured,key_preview}
+  const [liveConfigured, setLiveConfigured] = useState(null); // null until we know
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -747,6 +753,17 @@ function AskChat({ days, currentSiteId }) {
     }
   };
 
+  // Live's managed model and this install's own key are different things. People who
+  // have paid for Live reasonably read "Add your Anthropic API key" as the product
+  // forgetting what they just bought, so the panel says which is which.
+  useEffect(() => {
+    let live = true;
+    cachedGet("/admin/settings/reading", { priority: PRIORITY.instant })
+      .then((d) => { if (live) setLiveConfigured(Boolean(d?.live_key_set)); })
+      .catch(() => { if (live) setLiveConfigured(false); });
+    return () => { live = false; };
+  }, []);
+
   // --- Render: setup panel for admins when no key ---
   if (aiStatus === null) {
     return (
@@ -765,8 +782,23 @@ function AskChat({ days, currentSiteId }) {
           <span className="text-xs text-slate-500 ml-auto">Powered by Claude</span>
         </div>
         <div className="px-5 py-6 space-y-4">
+          {liveConfigured && (
+            <div className="rounded-lg border border-violet-500/25 bg-violet-500/[0.06] px-4 py-3">
+              <p className="text-xs text-violet-200 font-medium mb-1">
+                You already have Higashi Live — this is not that key.
+              </p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Live brings its own managed model and writes your weekly reading with it. Nothing
+                below is needed for that, and Live will keep working whether you fill this in or not.
+                The key here is only for asking questions of this install's own data, on this page.
+                It stays on this server and is never sent to Live.
+              </p>
+            </div>
+          )}
           <div>
-            <p className="text-sm text-slate-300 font-medium mb-1">Add your Anthropic API key to enable AI chat</p>
+            <p className="text-sm text-slate-300 font-medium mb-1">
+              {liveConfigured ? "Optional: add your own Anthropic key to chat with your data" : "Add your Anthropic API key to enable AI chat"}
+            </p>
             <p className="text-xs text-slate-500 leading-relaxed">
               It's used to call Claude with your real analytics data so you can ask questions in plain English.{" "}
               <a
@@ -782,11 +814,11 @@ function AskChat({ days, currentSiteId }) {
           <div className="flex gap-2">
             <input
               type="password"
+              {...secretFieldProps("higashi-anthropic-key")}
               value={keyInput}
               onChange={(e) => { setKeyInput(e.target.value); setSaveError(""); }}
               onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
               placeholder="sk-ant-api03-…"
-              autoComplete="off"
               className="flex-1 bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500/60 font-mono"
             />
             <button

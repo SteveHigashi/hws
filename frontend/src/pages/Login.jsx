@@ -74,6 +74,7 @@ export default function Login() {
             <label className="block text-xs text-slate-400 mb-1.5">Password</label>
             <input
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
