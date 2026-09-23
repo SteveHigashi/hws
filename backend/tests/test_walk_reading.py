@@ -64,15 +64,13 @@ class LocalReadingTests(unittest.TestCase):
         self.assertTrue(any("Higashi reports what arrived" in p for p in reading.paragraphs))
         self.assertTrue(any("needs Higashi Live" in p for p in reading.paragraphs))
 
-    def test_local_reading_is_the_same_function_live_runs(self):
-        from app import reading as live_reading  # Live's module, importing the same package
-        report = ReportIn.model_validate(REPORT)
-        from higashi_reading import no_comparison_notes
-        ours = deterministic_reading(report, product="Live")
-        theirs = live_reading.deterministic_reading(report, [], [], no_comparison_notes(report))
-        self.assertEqual(ours.headline, theirs.headline)
-        self.assertEqual(ours.verdict, theirs.verdict)
-        self.assertEqual(ours.paragraphs, theirs.paragraphs)
+    # The guard that the local reading and the Higashi Live reading are the same
+    # function lives in the Higashi Live repository, because it needs both halves and
+    # Live is not part of this distribution. What this repository can assert is that
+    # the rules come from the shared MIT package rather than a copy of it.
+    def test_the_reading_comes_from_the_shared_package_not_a_copy(self):
+        import higashi_reading.deterministic as shared
+        self.assertIs(deterministic_reading, shared.deterministic_reading)
 
 
 class ByokReadingTests(unittest.IsolatedAsyncioTestCase):
