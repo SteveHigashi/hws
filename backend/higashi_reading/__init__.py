@@ -5,6 +5,7 @@ product ships everywhere (server, sidecar); Live receives a copy of this directo
 from its deploy script.
 """
 from .deterministic import (  # noqa: F401
+    refused_crawlers_that_came,
     AI_SEARCH_CAVEAT,
     KNOWN_ROBOTS_IGNORERS,
     SEARCH_REFUSED_CAVEAT,

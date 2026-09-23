@@ -118,7 +118,7 @@ import json  # noqa: E402
 from higashi_reading import (  # noqa: E402
     ENFORCEMENT_CLAIMS, RAW_STANCE_TOKENS, SYSTEM_PROMPT, ReadingBody,
     constrain_model_reading, enforcement_claim_in, model_context, raw_stance_token_in,
-    stance_context,
+    refused_crawlers_that_came, stance_context,
 )
 
 
@@ -275,3 +275,56 @@ class ReadingShapeTests(unittest.TestCase):
         honest = self.reading(paragraphs=[
             "Where you enforce the refusal, training crawlers cannot fetch those pages."])
         self.assertIsNot(constrain_model_reading(honest, self.fallback, self.report, [], []), self.fallback)
+
+
+class LocalAndLiveParityTests(unittest.TestCase):
+    """What the free reading gives, the paid one must not withhold.
+
+    Three times on 2026-09-23 the same seam bit: item 7 moved the rules to the five
+    stances and left something on the legacy three-way vocabulary, so local and Live
+    answered differently for one report. This asks both for the same report.
+    """
+
+    STANCES_THAT_REFUSE = ("refuse_training", "refuse_training_seo", "keep_search_only", "refuse_all")
+
+    def model_reading_for(self, r):
+        """A model reading with no robots block, put through the same constraint Live uses."""
+        bare = ReadingBody.model_validate({
+            "headline": "GPTBot took records this week",
+            "paragraphs": ["You can enforce that on your own server with a robots.txt rule."],
+            "verdict": r.walk.verdict, "changes": [], "benchmarks": [],
+        })
+        return constrain_model_reading(bare, deterministic_reading(r), r, [], [])
+
+    @staticmethod
+    def has_block(reading):
+        return any("User-agent:" in p and "Disallow: /" in p for p in reading.paragraphs)
+
+    def test_both_readings_carry_the_block_when_a_refused_crawler_came(self):
+        for stance in self.STANCES_THAT_REFUSE:
+            r = report(stance, legacy_value(stance))
+            self.assertTrue(refused_crawlers_that_came(r), f"{stance} should refuse one of the test crawlers")
+            self.assertTrue(self.has_block(deterministic_reading(r)), f"local reading, {stance}")
+            self.assertTrue(self.has_block(self.model_reading_for(r)), f"live reading, {stance}")
+
+    def test_neither_reading_carries_a_block_when_nothing_refused_came(self):
+        r = report("allow_all", "found")
+        self.assertEqual(refused_crawlers_that_came(r), [])
+        self.assertFalse(self.has_block(deterministic_reading(r)))
+        self.assertFalse(self.has_block(self.model_reading_for(r)))
+
+    def test_the_block_names_the_refused_crawler_that_actually_came(self):
+        r = report("refuse_training")  # GPTBot is the training crawler in CRAWLERS
+        for reading in (deterministic_reading(r), self.model_reading_for(r)):
+            block = "\n".join(p for p in reading.paragraphs if "User-agent:" in p)
+            self.assertIn("User-agent: GPTBot", block)
+            self.assertNotIn("User-agent: Googlebot", block)
+
+    def test_a_reading_that_already_has_a_block_does_not_get_a_second(self):
+        r = report("refuse_training")
+        written = ReadingBody.model_validate({
+            "headline": "h", "paragraphs": ["Paste this into robots.txt:\nUser-agent: GPTBot\nDisallow: /"],
+            "verdict": r.walk.verdict, "changes": [], "benchmarks": [],
+        })
+        out = constrain_model_reading(written, deterministic_reading(r), r, [], [])
+        self.assertEqual(sum("User-agent:" in p for p in out.paragraphs), 1)

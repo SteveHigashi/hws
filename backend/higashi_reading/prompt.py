@@ -9,7 +9,12 @@ import json
 from typing import Any
 
 from .crawlers import RAW_STANCE_TOKENS, stance_context
-from .deterministic import clamp_recommendation, max_action, robots_paragraph
+from .deterministic import (
+    clamp_recommendation,
+    max_action,
+    refused_crawlers_that_came,
+    robots_paragraph,
+)
 from .schemas import ReadingBody, ReportIn
 
 SYSTEM_PROMPT = """You write the weekly Higashi Live reading from aggregate counts only.
@@ -150,7 +155,8 @@ def constrain_model_reading(
     # ReadingBody types it as a plain str for the model's sake, so nothing else stops
     # a model returning a sentence here — one did. Take the report's, as with changes.
     reading.verdict = report.walk.verdict
-    if report.ai_stance == "block_all" and not any("User-agent:" in p and "Disallow: /" in p for p in reading.paragraphs):
+    # Same question the local rules ask, so both readings carry the block or neither does.
+    if refused_crawlers_that_came(report) and not any("User-agent:" in p and "Disallow: /" in p for p in reading.paragraphs):
         reading.paragraphs.append(robots_paragraph(report, product))
     if not benchmarks and any("typical for a site" in p.casefold() for p in reading.paragraphs):
         return fallback

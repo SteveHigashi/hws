@@ -29,6 +29,14 @@ def _came_refused(report: ReportIn) -> list[str]:
     return [n for n in _names(report.crawlers) if crawler_class(n) in refused]
 
 
+# Public name for the one question that decides whether a robots.txt block belongs in
+# a reading: did a crawler the stance refuses actually come? The local rules have always
+# used it; Live asked `ai_stance == "block_all"` instead and so withheld the block from
+# paying readers that the free product handed out.
+def refused_crawlers_that_came(report: ReportIn) -> list[str]:
+    return _came_refused(report)
+
+
 def _came_welcome(report: ReportIn) -> dict[str, list[str]]:
     """Crawlers the stance allows, grouped by class label, in first-seen order."""
     refused = refused_classes(report)
