@@ -22,6 +22,15 @@ export const useAuthStore = create(
         }
         return data;
       },
+      // A passkey sign-in returns the same token the password flow does; the store
+      // does not care which proof produced it.
+      completeSignIn: (data, email, options = {}) => {
+        const { remember = true } = options;
+        set({ token: data.access_token, role: data.role, email });
+        api.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
+        if (remember && email) localStorage.setItem("ha-login-email", email);
+        return data;
+      },
       logout: () => {
         set({ token: null, role: null, email: null });
         delete api.defaults.headers.common["Authorization"];

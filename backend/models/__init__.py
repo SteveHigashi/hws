@@ -11,3 +11,4 @@ from .app_setting import AppSetting  # must import to register table
 from .pull_profile import PullProfile  # must import to register table
 from .live_reading import LiveReading  # must import to register table with SQLAlchemy metadata
 from .password_reset import PasswordReset  # must import to register table
+from .passkey import Passkey  # must import to register table

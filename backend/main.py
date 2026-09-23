@@ -14,7 +14,7 @@ from config import get_settings
 from database import init_db, AsyncSessionLocal
 from services.session_quality import backfill_in_background
 from routers import collect, analytics, auth, setup, intelligence, admin, behavior, ai_crawlers
-from routers import import_logs, geo_probes, sites, live_traffic, live, reading
+from routers import import_logs, geo_probes, sites, live_traffic, live, reading, passkeys
 from services.live_client import load_local_live_ranges
 from services.log_importer import import_log_file
 
@@ -129,6 +129,7 @@ app.include_router(sites.router, prefix="/api/sites", tags=["sites"])
 app.include_router(live_traffic.router, prefix="/api/live-traffic", tags=["live-traffic"])
 app.include_router(live.router, prefix="/api/live", tags=["live"])
 app.include_router(reading.router, prefix="/api/reading", tags=["reading"])
+app.include_router(passkeys.router, prefix="/api/auth/passkeys", tags=["auth"])
 if walk_detection_router is not None:
     app.include_router(
         walk_detection_router.router,

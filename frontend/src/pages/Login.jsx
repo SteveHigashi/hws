@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../hooks/useAuth";
+import { passkeysSupported, signInWithPasskey } from "../utils/webauthn";
 
 export default function Login() {
   const savedEmail =
@@ -13,6 +14,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const completeSignIn = useAuthStore((s) => s.completeSignIn);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const token = useAuthStore((s) => s.token);
   const navigate = useNavigate();
 
@@ -98,6 +101,35 @@ export default function Login() {
             <Link to="/forgot" className="text-slate-500 hover:text-slate-300 underline">Forgot your password?</Link>
           </p>
         </form>
+
+        {passkeysSupported() && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              disabled={passkeyBusy}
+              onClick={async () => {
+                setError("");
+                setPasskeyBusy(true);
+                try {
+                  const data = await signInWithPasskey(email);
+                  completeSignIn(data, email, { remember });
+                  navigate("/dashboard", { replace: true });
+                } catch (err) {
+                  // A cancelled prompt is not a failure worth shouting about.
+                  if (err?.name !== "NotAllowedError" && err?.name !== "AbortError") {
+                    setError(err.response?.data?.detail || "That passkey was not accepted");
+                  }
+                } finally {
+                  setPasskeyBusy(false);
+                }
+              }}
+              className="w-full border border-surface-600 hover:border-surface-500 text-slate-300 text-sm py-2.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {passkeyBusy ? "Waiting for your passkey…" : "Sign in with a passkey"}
+            </button>
+            <p className="text-xs text-slate-600 mt-2">Add one from Account once you are signed in.</p>
+          </div>
+        )}
       </div>
     </div>
   );

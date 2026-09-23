@@ -95,7 +95,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-surface-600">
+      <div className="p-4 border-t border-surface-600 space-y-2">
+        <NavLink to="/dashboard/account" className="block text-xs text-slate-500 hover:text-slate-300 transition-colors">
+          Account
+        </NavLink>
         <button
           onClick={logout}
           className="w-full text-left text-xs text-slate-500 hover:text-slate-300 transition-colors"

@@ -30,3 +30,8 @@ def apply_migrations(connection) -> None:
     except ImportError:
         return
     upgrade_password_resets(connection)
+    try:
+        from migrations.m007_passkeys import upgrade as upgrade_passkeys
+    except ImportError:
+        return
+    upgrade_passkeys(connection)

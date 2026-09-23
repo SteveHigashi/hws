@@ -47,3 +47,5 @@ secrets.json
 *.bak
 *.bak.*
 *.bak_*
+*.db-wal
+*.db-shm

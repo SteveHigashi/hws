@@ -18,3 +18,4 @@ anthropic>=0.40.0
 openai>=1.30.0
 google-generativeai>=0.7.0
 a2wsgi==1.10.4
+webauthn>=2.0,<4     # passkey sign-in (optional alongside the password)

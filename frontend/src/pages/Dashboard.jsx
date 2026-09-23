@@ -9,6 +9,7 @@ import RealtimeFeed from "../components/charts/RealtimeFeed";
 import api from "../utils/api";
 import { useSiteStore } from "../store/siteStore";
 import Intelligence from "./Intelligence";
+import Account from "./Account";
 import GeoVisibility from "./GeoVisibility";
 import Realtime from "./Realtime";
 import Flow from "./Flow";
@@ -468,6 +469,7 @@ export default function Dashboard() {
       <Routes>
         <Route index element={<Overview />} />
         <Route path="intelligence" element={<Intelligence />} />
+        <Route path="account" element={<Account />} />
         <Route path="geo-visibility" element={<GeoVisibility />} />
         <Route path="realtime" element={<Realtime />} />
         <Route path="live-traffic" element={<LiveTraffic />} />
