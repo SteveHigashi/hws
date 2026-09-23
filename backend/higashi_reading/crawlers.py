@@ -5,6 +5,9 @@ what is measured. Each stance refuses a set of crawler classes. `ai_stance` (fou
 search_only / block_all) is the older three-way value that Live keys and old reports
 still carry; `LEGACY_TO_STANCE` says what each of those meant in the copy of the time.
 """
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Stephen Higashi / JotNotes
+# MIT, not AGPL — see backend/higashi_reading/LICENSE. Shared with Higashi Live.
 from __future__ import annotations
 
 CLASSES = ("search", "answer_fetcher", "training", "seo_tools", "other")

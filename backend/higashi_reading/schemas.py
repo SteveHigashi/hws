@@ -4,6 +4,9 @@ Pure pydantic, no database, no network. The privacy validator on ReportIn is the
 same on both sides on purpose: what the free product may build locally is exactly
 what Live may receive.
 """
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Stephen Higashi / JotNotes
+# MIT, not AGPL — see backend/higashi_reading/LICENSE. Shared with Higashi Live.
 from __future__ import annotations
 
 from datetime import date

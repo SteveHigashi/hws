@@ -27,7 +27,7 @@
 
 ## Monetization Path
 
-1. **Free / open source** — self-hosted tracker, single site, MIT license
+1. **Free / open source** — self-hosted tracker, single site, AGPL-3.0-or-later (the embeddable tracker itself is MIT)
 2. **Paid desktop app** — multi-site command center, local only, talks directly to your servers
 3. **Future: paid cloud archive** — optional off-site storage for historical aggregated data
 

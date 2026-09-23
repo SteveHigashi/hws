@@ -3,6 +3,9 @@
 Shared by the free product (local provider), Bring-your-own-key (as the fallback and
 the ceiling) and Higashi Live. No database, no network.
 """
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Stephen Higashi / JotNotes
+# MIT, not AGPL — see backend/higashi_reading/LICENSE. Shared with Higashi Live.
 from __future__ import annotations
 
 from .crawlers import CLASS_LABELS, STANCES, crawler_class, refused_classes, stance_of

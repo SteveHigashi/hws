@@ -1,3 +1,10 @@
+// Higashi tracker
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Stephen Higashi / JotNotes
+//
+// MIT, not AGPL: this file is meant to be copied into your own website, and doing so
+// places no licence obligation on your site. The Higashi server it reports to is
+// AGPL-3.0-or-later. See LICENSES.md in the repository root.
 (function () {
   "use strict";
 

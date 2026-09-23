@@ -2,7 +2,9 @@
 
 **The dots connect themselves.**
 
-A self-hosted, privacy-first analytics platform for AI-native websites, static sites, and modern digital ecosystems. Open source, MIT licensed — you own your data, always.
+A self-hosted, privacy-first analytics platform for AI-native websites, static sites, and modern digital ecosystems. Open source under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later) — you own your data, always.
+
+The embeddable browser tracker (`tracker/`) and the shared reading rules (`backend/higashi_reading/`) are MIT licensed, so putting the tracker on your site places no obligation on it. Higashi Live, the paid hosted service, is proprietary. See [LICENSES.md](LICENSES.md) for the boundaries and [TRADEMARK.md](TRADEMARK.md) for the name and logo.
 
 ---
 

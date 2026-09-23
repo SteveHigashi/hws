@@ -4,6 +4,9 @@ Pure: pydantic models and functions only. Lives under backend/ because the free
 product ships everywhere (server, sidecar); Live receives a copy of this directory
 from its deploy script.
 """
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Stephen Higashi / JotNotes
+# MIT, not AGPL — see backend/higashi_reading/LICENSE. Shared with Higashi Live.
 from .deterministic import (  # noqa: F401
     refused_crawlers_that_came,
     AI_SEARCH_CAVEAT,

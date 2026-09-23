@@ -3,6 +3,9 @@
 Used identically by Bring-your-own-key (customer's model, locally) and Higashi Live
 (managed model). The deterministic reading is always the fallback and the ceiling.
 """
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Stephen Higashi / JotNotes
+# MIT, not AGPL — see backend/higashi_reading/LICENSE. Shared with Higashi Live.
 from __future__ import annotations
 
 import json
