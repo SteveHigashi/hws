@@ -30,30 +30,40 @@ from services import secret_box
 router = APIRouter()
 settings = get_settings()
 
-KNOWN_SERVERS = []
-if settings.sftp_host:
-    KNOWN_SERVERS = [
-        {
-            "label": "stevenhigashi.com",
+def _parse_log_sources(raw: str) -> list[dict]:
+    """Log sources from configuration, not from a list baked into the source.
+
+    LOG_SOURCES is semicolon-separated; each entry is
+
+        label|domain|/path/to/access.log
+        label|domain|/path/to/access.log|username|password
+
+    Host and port come from SFTP_HOST / SFTP_PORT, and the username and password fall
+    back to SFTP_USER / SFTP_PASSWORD when an entry does not carry its own. An entry
+    with no path is skipped by the sync loop and can still be imported by hand.
+    """
+    sources: list[dict] = []
+    for entry in (raw or "").split(";"):
+        entry = entry.strip()
+        if not entry:
+            continue
+        parts = [p.strip() for p in entry.split("|")]
+        if len(parts) < 3:
+            continue
+        label, domain, log_path = parts[0], parts[1], parts[2]
+        sources.append({
+            "label": label,
             "host": settings.sftp_host,
             "port": settings.sftp_port,
-            "username": settings.sftp_user_stevenhigashi,
-            "password": settings.sftp_password_stevenhigashi,
-            "domain": "stevenhigashi.com",
-            # Paths as configured on the cloudanalyst install; blank means
-            # manual import only, and _sync_loop skips the entry.
-            "log_path": "/home/example.hosting.invalid/site-one/logs/access.log",
-        },
-        {
-            "label": "cloudanalyst.net",
-            "host": settings.sftp_host,
-            "port": settings.sftp_port,
-            "username": settings.sftp_user_cloudanalyst,
-            "password": settings.sftp_password,
-            "domain": "cloudanalyst.net",
-            "log_path": "/home/example.hosting.invalid/site-two/logs/access.log",
-        },
-    ]
+            "username": parts[3] if len(parts) > 3 and parts[3] else settings.sftp_user,
+            "password": parts[4] if len(parts) > 4 and parts[4] else settings.sftp_password,
+            "domain": domain,
+            "log_path": log_path,
+        })
+    return sources
+
+
+KNOWN_SERVERS = _parse_log_sources(settings.log_sources) if settings.sftp_host else []
 
 
 async def _import_with_optional_detection(**kwargs) -> dict:

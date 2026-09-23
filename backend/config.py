@@ -22,16 +22,18 @@ class Settings(BaseSettings):
     ai_monthly_budget_usd: float = 0.0
     ai_default_model: str = "claude-haiku-4-5-20251001"
 
+    # Optional: pull access logs from another server over SSH/SFTP instead of, or as
+    # well as, using the browser tracker. Configure your own sources with LOG_SOURCES
+    # (see .env.example); these are the shared connection defaults.
     sftp_host: str = ""
     sftp_port: int = 22
+    sftp_user: str = ""
     sftp_password: str = ""
-    sftp_user_cloudanalyst: str = "log-user"
-    sftp_user_stevenhigashi: str = "steve"
-    sftp_password_stevenhigashi: str = ""
-    sftp_path_stevenhigashi: str = ""
 
-    # viabandwidth.com lives on its own IONOS VPS (plain nginx, not Cloudways)
-    ssh_password_viabandwidth: str = ""
+    # Semicolon-separated log sources, each "label|domain|/path/to/access.log" and
+    # optionally "|user|password" when that source needs its own credentials.
+    # Empty means manual upload only.
+    log_sources: str = ""
     live_key: str = ""
     # Who writes the walk reading shown on the dashboard: "local" = the fixed rules on
     # this install (free), "byok" = the same prompt through the customer's own model key
