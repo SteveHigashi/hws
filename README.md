@@ -346,7 +346,27 @@ card), so you can read exactly what an install would send before deciding to use
 It sends counts, crawler names and a verdict — never IPs, paths, URLs, user agents
 or page content, and a validator rejects anything that looks like one.
 
-Leave `LIVE_KEY` empty and none of it runs.
+### What it costs
+
+**$10 a month, or $99 a year.** One site per key.
+
+| | Higashi, free | Higashi Live |
+|---|---|---|
+| Detect crawlers, see what they took | ✅ | ✅ |
+| Plain-language reading of what happened | ✅ rules on your own box | ✅ plus a managed model |
+| History across weeks | — | ✅ |
+| How your site compares to others its size | — | ✅ |
+| Weekly email | — | ✅ |
+| Crawler ranges kept current for you | you update them | ✅ |
+| Where your data goes | nowhere | aggregate counts only |
+
+**→ [cloudanalyst.net/live](https://cloudanalyst.net/live)** — what it does, what it
+does not, and what it costs you to turn on. Sign up there, paste the key into
+Intelligence → Higashi Live, and the dashboard starts using it.
+
+Leave `LIVE_KEY` empty and none of it runs. Nothing nags you to buy it, and the free
+product is not crippled to sell the paid one — the reading you get without a key is
+the same reading, produced by the same rules.
 
 ---
 
