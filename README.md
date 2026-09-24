@@ -8,6 +8,15 @@ The embeddable browser tracker (`tracker/`) and the shared reading rules (`backe
 
 ---
 
+![The Overview: people and machines as equal headline numbers, then who fetched the site and what they took](docs/images/overview-first-screen.png)
+
+*The first screen. Every other analytics dashboard leads with visitors and mentions
+bots somewhere below. Higashi puts them side by side, then names the crawlers and
+says how much of your site each one took. Screenshot is generated demo data — see
+"Try it with demo data" below.*
+
+---
+
 ## What makes this different
 
 Most analytics tools show you what happened. This one tells you why it matters.
@@ -165,6 +174,22 @@ It is not a good fit if you want a managed SaaS dashboard with someone else on c
 - [ ] v0.2 — Multi-site desktop app (Tauri, paid)
 - [ ] v0.3 — Predictive analytics, AI conversational queries
 - [ ] v0.4 — Historical archive cloud service (paid)
+
+---
+
+## Try it with demo data
+
+To see the dashboard with something in it before pointing it at a real site:
+
+```bash
+cd backend
+DATABASE_URL=sqlite+aiosqlite:///./demo.db python scripts/seed_demo.py
+```
+
+That writes a month of invented traffic for `example.com` — around 1,100 human
+sessions and 11,700 crawler requests, including one crawler claiming to be Bingbot
+that is not. Nothing in it is real. The script refuses to run against a database that
+already has data.
 
 ---
 
