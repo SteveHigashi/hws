@@ -12,7 +12,7 @@ The embeddable browser tracker (`tracker/`) and the shared reading rules (`backe
 
 Most analytics tools show you what happened. This one tells you why it matters.
 
-- **Intelligence layer** — automatic anomaly detection, geo spikes, traffic trends, dead pages, and new source alerts
+- **It tells you what changed** — traffic that jumped or vanished, a country that appeared from nowhere, pages that stopped being read, a new referrer worth knowing about
 - **Session flow maps** — Sankey diagrams showing how visitors actually navigate your site
 - **Cinematic visualization** — 3D rotating globe, live visitor feed, real-time activity stream
 - **Privacy by design** — IPs are hashed, never stored raw. Runs entirely on your own server.
@@ -23,8 +23,8 @@ Most analytics tools show you what happened. This one tells you why it matters.
 ## Quick Start (Docker)
 
 ```bash
-git clone https://github.com/higashi-interactive/analytics.git
-cd analytics
+git clone https://github.com/SteveHigashi/higashi-analytics.git
+cd higashi-analytics
 cp .env.example .env
 # Edit .env — set a real SECRET_KEY and your DB password
 docker-compose up -d
@@ -38,7 +38,7 @@ You'll get a tracker snippet like:
 <script src="https://your-server:8000/tracker.js" data-key="YOUR_KEY" async></script>
 ```
 
-Paste it into the `<head>` of every page you want to track.
+Paste it immediately before `</body>` on every page you want to track.
 
 ---
 
@@ -46,9 +46,9 @@ Paste it into the `<head>` of every page you want to track.
 
 ### Requirements
 - Python 3.11+
-- PostgreSQL 14+
-- Redis 7+
-- Node.js 20+ (for frontend build)
+- Node.js 20+ (to build the dashboard)
+- A database — **SQLite is the default and needs nothing installed.** PostgreSQL 14+
+  works too; use a `postgresql+asyncpg://` URL, as the application is async throughout.
 
 ### Backend
 
@@ -145,18 +145,21 @@ GET  /api/admin/storage        — storage usage stats (admin)
 
 ---
 
-## Use Cases
+## Who this is for
 
-**stevenhigashi.com** — personal site tracking, baseline dashboard testing
+- **You publish something worth copying** — a catalogue, a directory, reference pages, long articles — and want to know which crawlers took it and how much.
+- **You want analytics without a third party** — no account, no data leaving your server, no cookie banner to argue about.
+- **Your traffic is mostly not human** and you would like that to be a number on the screen rather than a suspicion.
+- **You already run a server** and would rather host one more small thing than pay per-pageview.
 
-**cloudanalyst.net** — AI content site, content intelligence, article performance analysis
+It is not a good fit if you want a managed SaaS dashboard with someone else on call.
 
 ---
 
 ## Roadmap
 
 - [x] v0.1 — Core tracking, dashboard, setup wizard, Docker deploy
-- [x] v0.1 — Intelligence layer (anomaly detection, insights)
+- [x] v0.1 — Automatic detection of anomalies, spikes and dead pages
 - [x] v0.1 — Session flow (Sankey), geo globe, real-time feed
 - [ ] v0.2 — Heatmap overlay, concurrent users, session replay concepts
 - [ ] v0.2 — Multi-site desktop app (Tauri, paid)

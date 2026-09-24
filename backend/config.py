@@ -4,7 +4,6 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://higashi:changeme@localhost:5432/higashi"
-    redis_url: str = "redis://localhost:6379"
     secret_key: str = "changeme_generate_a_real_key"  # replaced at startup, see get_settings
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 30  # 30 days — desktop app stays logged in

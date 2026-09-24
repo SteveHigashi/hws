@@ -13,21 +13,13 @@ services:
     ports:
       - "5432:5432"
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redisdata:/data
-
   backend:
     build: ./backend
     restart: unless-stopped
     depends_on:
       - db
-      - redis
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-higashi}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-higashi}
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-higashi}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-higashi}
       SECRET_KEY: ${SECRET_KEY:-changeme_generate_a_real_key}
       FIRST_RUN: ${FIRST_RUN:-true}
     ports:
@@ -45,4 +37,3 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
