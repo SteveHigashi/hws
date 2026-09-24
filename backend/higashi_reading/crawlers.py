@@ -100,7 +100,10 @@ STANCE_IDS = tuple(STANCES)
 # What the three old values meant in the copy that offered them: "Fine, I want to be found"
 # allowed everything; "Fine for search engines, not for AI training" refused training;
 # "Block AI training bots (Google/Bing answers still see you)" kept search and refused the rest.
-LEGACY_TO_STANCE = {"found": "allow_all", "search_only": "refuse_training", "block_all": "keep_search_only"}
+# The reverse of STANCES[*]["legacy"]. `test_every_legacy_value_round_trips_through_its_stance`
+# holds the two in agreement: they were written by hand at opposite ends of this file and
+# drifted, so `block_all` (refuse everything) resolved to `keep_search_only`.
+LEGACY_TO_STANCE = {"found": "allow_all", "search_only": "keep_search_only", "block_all": "refuse_all"}
 
 
 def stance_of(report) -> str:

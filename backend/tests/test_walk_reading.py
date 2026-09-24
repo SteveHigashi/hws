@@ -15,9 +15,8 @@ from unittest.mock import patch
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
-sys.path.insert(0, str(BACKEND.parent / "live"))  # Live's copy of the rules, for the identity test
 
-from higashi_reading import AI_SEARCH_CAVEAT, ReadingBody, ReportIn, deterministic_reading  # noqa: E402
+from higashi_reading import AI_SEARCH_CAVEAT, SEARCH_REFUSED_CAVEAT, ReadingBody, ReportIn, deterministic_reading  # noqa: E402
 from services import walk_reading  # noqa: E402
 
 REPORT = {
@@ -58,7 +57,9 @@ class LocalReadingTests(unittest.TestCase):
     def test_local_reading_needs_no_key_and_carries_the_caveat_and_robots_block(self):
         reading = walk_reading.local_reading(REPORT)
         self.assertIsInstance(reading, ReadingBody)
-        self.assertIn(AI_SEARCH_CAVEAT, reading.paragraphs)
+        # REPORT is ai_stance="block_all" — refuse everything — so the caveat is the
+        # one that says search is given up, not the one that says search is kept.
+        self.assertIn(SEARCH_REFUSED_CAVEAT, reading.paragraphs)
         self.assertTrue(any("User-agent: GPTBot" in p for p in reading.paragraphs))
         self.assertTrue(any("bytespider" in p.casefold() and "ignore robots.txt" in p for p in reading.paragraphs))
         self.assertTrue(any("Higashi reports what arrived" in p for p in reading.paragraphs))

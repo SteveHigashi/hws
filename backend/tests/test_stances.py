@@ -95,17 +95,44 @@ class StanceReadingTests(unittest.TestCase):
 class LegacyTests(unittest.TestCase):
     def test_old_reports_keep_the_meaning_their_copy_had(self):
         self.assertEqual(stance_of(report(None, "found")), "allow_all")
-        self.assertEqual(stance_of(report(None, "search_only")), "refuse_training")
-        self.assertEqual(stance_of(report(None, "block_all")), "keep_search_only")
+        self.assertEqual(stance_of(report(None, "search_only")), "keep_search_only")
+        self.assertEqual(stance_of(report(None, "block_all")), "refuse_all")
         self.assertEqual(set(LEGACY_TO_STANCE), {"found", "search_only", "block_all"})
+
+    def test_every_legacy_value_round_trips_through_its_stance(self):
+        """LEGACY_TO_STANCE is the reverse of STANCES[*]["legacy"] and must agree with it.
+
+        These two maps are written by hand at opposite ends of the same file, and
+        nothing made them agree. They did not: `search_only` (keep search only)
+        resolved to `refuse_training`, and `block_all` (refuse everything) to
+        `keep_search_only` — so an install that asked to refuse every crawler was
+        reported as keeping search, in the dashboard and in the reading Live sends
+        a paying customer. Round-tripping is the property that catches it.
+        """
+        for legacy, stance in LEGACY_TO_STANCE.items():
+            with self.subTest(legacy=legacy):
+                self.assertEqual(
+                    legacy_value(stance), legacy,
+                    f"{legacy!r} -> {stance!r} -> {legacy_value(stance)!r}: the two maps disagree",
+                )
+
+    def test_each_legacy_value_means_what_its_name_says(self):
+        self.assertEqual(LEGACY_TO_STANCE["found"], "allow_all")
+        self.assertEqual(LEGACY_TO_STANCE["search_only"], "keep_search_only")
+        self.assertEqual(LEGACY_TO_STANCE["block_all"], "refuse_all")
 
     def test_explicit_stance_wins_over_the_legacy_value(self):
         self.assertEqual(stance_of(report("refuse_all", "found")), "refuse_all")
 
-    def test_old_block_all_still_gets_robots_and_the_search_caveat(self):
+    def test_old_block_all_gets_robots_and_the_search_REFUSED_caveat(self):
+        """`block_all` means refuse everything, so the caveat must be the one that
+        says search is being given up. Under the broken mapping this report resolved
+        to `keep_search_only` and got AI_SEARCH_CAVEAT instead — which tells an owner
+        who asked to refuse every crawler that they are staying in Google."""
         reading = deterministic_reading(report(None, "block_all"))
         self.assertTrue(any("User-agent:" in p for p in reading.paragraphs))
-        self.assertIn(AI_SEARCH_CAVEAT, reading.paragraphs)
+        self.assertIn(SEARCH_REFUSED_CAVEAT, reading.paragraphs)
+        self.assertNotIn(AI_SEARCH_CAVEAT, reading.paragraphs)
 
 
 if __name__ == "__main__":
