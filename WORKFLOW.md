@@ -172,7 +172,7 @@ Keys are validated against each provider before saving, then written to the back
 - Multi-site under one login (already supported by the data model, just not exposed in the desktop UI yet).
 
 **Gaps in our current build:**
-1. **Backend isn't bundled with desktop app** — user must manually start uvicorn. Fix: PyInstaller sidecar (see `strategy/ONBOARDING_STRATEGY.md`).
+1. **Backend isn't bundled with desktop app** — user must manually start uvicorn. Fix: PyInstaller sidecar.
 2. **No `/api/sites` endpoints** — desktop app can't show multi-site tabs cleanly.
 3. **Tracker code shown only at first-run setup** — should be accessible from every site's tab so users can re-copy it.
 4. **No connection test after tracker install** — user pastes the code but doesn't get a "✓ Tracker is working" confirmation.

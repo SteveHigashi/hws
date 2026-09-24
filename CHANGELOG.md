@@ -11,19 +11,19 @@ All 13 screens captured from live dev server on first run.
 
 | Screen | Description |
 |---|---|
-| ![Login](screenshots/login.png) | Login — dark centered form, HIGASHI ANALYTICS pulse branding |
-| ![Setup Step 1](screenshots/setup-welcome.png) | Setup wizard step 1 — 4-step progress bar, welcome card |
-| ![Overview](screenshots/dashboard-overview.png) | Overview — 8 stat cards, traffic chart, intelligence + realtime strips |
-| ![Intelligence](screenshots/dashboard-intelligence.png) | Intelligence — insight feed with severity colors, raw signals table |
-| ![Real-time](screenshots/dashboard-realtime.png) | Real-time — live SSE feed, "connecting…" state, active now panel |
-| ![Session Flow](screenshots/dashboard-flow.png) | Session Flow — Sankey placeholder (renders with real traffic data) |
-| ![Geography](screenshots/dashboard-geo.png) | Geography — globe container + country breakdown table |
-| ![Pages](screenshots/dashboard-pages.png) | Pages — sortable table with PAGE / VIEWS / TRAFFIC SHARE columns |
-| ![Traffic Sources](screenshots/dashboard-sources.png) | Traffic Sources — channel pie + top referrers breakdown |
-| ![Campaigns](screenshots/dashboard-campaigns.png) | Campaigns — UTM attribution table + search queries list |
-| ![Devices](screenshots/dashboard-devices.png) | Devices — device type bars + browser horizontal chart |
-| ![Errors & Exits](screenshots/dashboard-errors.png) | Errors & Exits — 404 list with ✓ clean state + exit pages |
-| ![Behavior](screenshots/dashboard-behavior.png) | Behavior — rage clicks, dead clicks, text selections, form abandonment, JS errors |
+| Login | Login — dark centered form, HIGASHI ANALYTICS pulse branding |
+| Setup Step 1 | Setup wizard step 1 — 4-step progress bar, welcome card |
+| Overview | Overview — 8 stat cards, traffic chart, intelligence + realtime strips |
+| Intelligence | Intelligence — insight feed with severity colors, raw signals table |
+| Real-time | Real-time — live SSE feed, "connecting…" state, active now panel |
+| Session Flow | Session Flow — Sankey placeholder (renders with real traffic data) |
+| Geography | Geography — globe container + country breakdown table |
+| Pages | Pages — sortable table with PAGE / VIEWS / TRAFFIC SHARE columns |
+| Traffic Sources | Traffic Sources — channel pie + top referrers breakdown |
+| Campaigns | Campaigns — UTM attribution table + search queries list |
+| Devices | Devices — device type bars + browser horizontal chart |
+| Errors & Exits | Errors & Exits — 404 list with ✓ clean state + exit pages |
+| Behavior | Behavior — rage clicks, dead clicks, text selections, form abandonment, JS errors |
 
 ---
 

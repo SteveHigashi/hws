@@ -9,7 +9,7 @@ component also carries its own notice so you do not have to come back here.
 | **Higashi core** — the self-hosted analytics application | `backend/`, `frontend/`, `server/`, `softaculous/`, `docker-compose.yml`, `build-backend.sh` | **AGPL-3.0-or-later** (`LICENSE`) |
 | **Shared reading rules** | `backend/higashi_reading/` | **MIT** (`backend/higashi_reading/LICENSE`) |
 | **Browser tracker** — the snippet you embed in your own site | `tracker/` | **MIT** (`tracker/LICENSE`) |
-| **Higashi Live** — the paid hosted service | `live/` | **Proprietary** (`live/LICENSE`) — all rights reserved |
+| **Higashi Live** — the paid hosted service | *not in this repository* | **Proprietary**, all rights reserved |
 | **Name, logo and brand** | — | Not licensed by any of the above. See `TRADEMARK.md`. |
 
 ## Why the tracker is MIT
@@ -20,6 +20,11 @@ It is MIT so that question never arises: **embedding the Higashi tracker places 
 licence obligation on your website whatsoever.**
 
 Running the Higashi *server* is a different matter — that is the AGPL part.
+
+Higashi Live is separate, proprietary software and its source is not distributed
+here. What *is* here, and open, is the code this product uses to talk to it —
+`backend/routers/live.py`, `backend/services/live_client.py` and the dashboard's Live
+card — so you can read exactly what an install would send before deciding to use it.
 
 ## Why `higashi_reading` is MIT
 
