@@ -1,0 +1,78 @@
+name: Bug report
+description: Something does not work the way it says it does
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Not for security problems.** If what you found lets someone see or
+        do something they should not, do not file it here — see
+        [SECURITY.md](https://github.com/SteveHigashi/higashi-analytics/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        I opened the Overview for a 30-day window and the crawler table stayed
+        empty, though Import Data says 40,000 events were imported.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: >
+        The steps, as short as you can make them. If it only happens with
+        certain data, say what is unusual about the data.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part
+      options:
+        - Dashboard (the web interface)
+        - Backend / API
+        - Tracker (the snippet on my site)
+        - Log import
+        - The reading (what Higashi says about crawlers)
+        - Install or upgrade
+        - Something else / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Which commit
+      description: >
+        Output of `git rev-parse --short HEAD` in your checkout, or the
+        version shown at the bottom of the dashboard.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: How you run it
+      description: >
+        Docker or manual, the database (SQLite or PostgreSQL), the operating
+        system, and the Python version if you installed it yourself.
+      placeholder: |
+        Manual install on Debian 12, Python 3.12, SQLite, behind nginx.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything in the logs
+      description: >
+        A traceback or the browser console, if there is one. **Read it before
+        you paste it** — access logs carry IP addresses, and settings carry
+        keys.
+      render: text

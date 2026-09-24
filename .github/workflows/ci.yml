@@ -1,0 +1,71 @@
+name: CI
+
+# Tests and a build. Nothing else on purpose: no deploy, no publish, no
+# secrets. This workflow should stay safe to run on a pull request from a
+# stranger's fork, which means it must never need a credential.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements-minimal.txt
+
+      # requirements-minimal.txt is the SQLite set, and the suite runs on
+      # SQLite — no PostgreSQL service is needed. requirements.txt is the
+      # production set and pulls asyncpg and psycopg2, which this job has no
+      # use for. The pytest pins match backend/requirements-dev.txt.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements-minimal.txt
+          python -m pip install "pytest>=9,<10" "pytest-asyncio>=1,<2"
+
+      # Both variables are required. config.py defaults database_url to a
+      # PostgreSQL URL and several test modules build an engine at import
+      # time, so without DATABASE_URL the suite fails during collection
+      # rather than failing a test. SECRET_KEY is a throwaway: it signs
+      # nothing that leaves this runner.
+      - name: Run tests
+        working-directory: backend
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          SECRET_KEY: "ci-only-not-a-real-secret"
+        run: python -m pytest tests -q
+
+  frontend:
+    name: Dashboard build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # This proves the bundle compiles. It does NOT prove the page runs: an
+      # undefined import is a runtime error, not a build error, and a blank
+      # dashboard has shipped past a green build here before.
+      - name: Build
+        working-directory: frontend
+        run: npm run build

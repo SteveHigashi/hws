@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest something Higashi should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open one of these before writing code. It is a five-minute
+        conversation that can save you a rejected pull request — see
+        [CONTRIBUTING.md](https://github.com/SteveHigashi/higashi-analytics/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to find out?
+      description: >
+        Describe the question you cannot answer today, not the feature you
+        have in mind for answering it. Higashi is about what is happening to
+        your site, so the useful version of this is usually a question.
+      placeholder: |
+        I cannot tell whether a crawler that took 400 pages came back the
+        following week, or whether it was a single sweep.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you work around it now?
+      description: Or say that you cannot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you think should happen
+      description: Optional. Skip it if you would rather leave the shape open.
+
+  - type: checkboxes
+    id: read
+    attributes:
+      label: Before you file
+      options:
+        - label: >
+            I have checked the Roadmap in the README, and this is not already
+            listed there.
+          required: true
+        - label: >
+            I understand Higashi reports on crawler activity and does not
+            block anything — it is not in the request path.
+          required: true
