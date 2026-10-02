@@ -17,5 +17,7 @@ class PullProfile(Base):
     secret_enc = Column(Text, nullable=True)
     domain = Column(String(255), nullable=True)
     log_paths = Column(Text, nullable=True)  # JSON list
+    schedule = Column(String(16), nullable=False, default="off", server_default="off")
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

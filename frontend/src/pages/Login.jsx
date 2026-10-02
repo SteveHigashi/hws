@@ -50,7 +50,7 @@ export default function Login() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <span className="w-2 h-2 rounded-full bg-accent pulse-dot" />
-            <span className="text-xs text-slate-400 uppercase tracking-widest font-mono">Higashi Analytics</span>
+            <span className="text-xs text-slate-400 uppercase tracking-widest font-mono">HWS</span>
           </div>
           <h1 className="text-2xl font-semibold text-white">Sign in</h1>
         </div>
@@ -99,7 +99,7 @@ export default function Login() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
           <p className="text-center text-xs">
-            <Link to="/forgot" className="text-slate-500 hover:text-slate-300 underline">Forgot your password?</Link>
+            <Link to="/forgot" className="text-slate-300 hover:text-white underline underline-offset-2">Forgot your password?</Link>
           </p>
         </form>
 

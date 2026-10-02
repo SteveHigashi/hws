@@ -1,9 +1,32 @@
-# Changelog — Higashi Interactive Analytics
+# Changelog — Higashi Web Stats (HWS)
 
 Visual screenshots are stored in `/screenshots/` and linked inline below.
 Format: version · date · what changed · why it matters.
 
 ---
+
+## v0.2.3 — 2026-10-02
+
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.3/> with a
+one-line installer. Requirements are Python 3.9+ and systemd; the frontend ships
+built and the database is SQLite. No Docker, PostgreSQL, Redis or Node is needed to
+install.
+
+- **External IP geolocation is now off by default.** `services/geo.py` sent every
+  visitor IP to ip-api.com - a third party, over plain HTTP - from the log importer,
+  the log-import script and the browser collector, with no way to turn it off. It is
+  now gated on `EXTERNAL_GEO`, which defaults to false. The gate sits inside
+  `resolve_geo()` so all three callers are covered by one check.
+- Higashi Live source removed from this repository. Live is proprietary and has its
+  own repository; Higashi keeps only the client code that talks to it. No released
+  tarball ever contained it.
+- The release tarball now carries the frontend **source** beside the built assets, so
+  a copy of it is enough to rebuild and modify Higashi (AGPL corresponding source).
+- README rewritten against what actually ships. The old one told people to
+  `git clone https://github.com/higashi-interactive/analytics.git`, which does not
+  exist, and described a Docker/PostgreSQL/Redis/Node stack the product no longer
+  uses. Its licence footer said MIT while LICENSE is AGPL-3.0.
+
 
 ## Screenshots — v0.1.0 (2026-05-13)
 
@@ -11,19 +34,19 @@ All 13 screens captured from live dev server on first run.
 
 | Screen | Description |
 |---|---|
-| Login | Login — dark centered form, HIGASHI ANALYTICS pulse branding |
-| Setup Step 1 | Setup wizard step 1 — 4-step progress bar, welcome card |
-| Overview | Overview — 8 stat cards, traffic chart, intelligence + realtime strips |
-| Intelligence | Intelligence — insight feed with severity colors, raw signals table |
-| Real-time | Real-time — live SSE feed, "connecting…" state, active now panel |
-| Session Flow | Session Flow — Sankey placeholder (renders with real traffic data) |
-| Geography | Geography — globe container + country breakdown table |
-| Pages | Pages — sortable table with PAGE / VIEWS / TRAFFIC SHARE columns |
-| Traffic Sources | Traffic Sources — channel pie + top referrers breakdown |
-| Campaigns | Campaigns — UTM attribution table + search queries list |
-| Devices | Devices — device type bars + browser horizontal chart |
-| Errors & Exits | Errors & Exits — 404 list with ✓ clean state + exit pages |
-| Behavior | Behavior — rage clicks, dead clicks, text selections, form abandonment, JS errors |
+| ![Login](screenshots/login.png) | Login — dark centered form, HIGASHI ANALYTICS pulse branding |
+| ![Setup Step 1](screenshots/setup-welcome.png) | Setup wizard step 1 — 4-step progress bar, welcome card |
+| ![Overview](screenshots/dashboard-overview.png) | Overview — 8 stat cards, traffic chart, intelligence + realtime strips |
+| ![Intelligence](screenshots/dashboard-intelligence.png) | Intelligence — insight feed with severity colors, raw signals table |
+| ![Real-time](screenshots/dashboard-realtime.png) | Real-time — live SSE feed, "connecting…" state, active now panel |
+| ![Session Flow](screenshots/dashboard-flow.png) | Session Flow — Sankey placeholder (renders with real traffic data) |
+| ![Geography](screenshots/dashboard-geo.png) | Geography — globe container + country breakdown table |
+| ![Pages](screenshots/dashboard-pages.png) | Pages — sortable table with PAGE / VIEWS / TRAFFIC SHARE columns |
+| ![Traffic Sources](screenshots/dashboard-sources.png) | Traffic Sources — channel pie + top referrers breakdown |
+| ![Campaigns](screenshots/dashboard-campaigns.png) | Campaigns — UTM attribution table + search queries list |
+| ![Devices](screenshots/dashboard-devices.png) | Devices — device type bars + browser horizontal chart |
+| ![Errors & Exits](screenshots/dashboard-errors.png) | Errors & Exits — 404 list with ✓ clean state + exit pages |
+| ![Behavior](screenshots/dashboard-behavior.png) | Behavior — rage clicks, dead clicks, text selections, form abandonment, JS errors |
 
 ---
 

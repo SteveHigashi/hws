@@ -9,7 +9,7 @@ import argparse
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Higashi Analytics backend")
+    parser = argparse.ArgumentParser(description="HWS (Higashi Web Stats) backend")
     parser.add_argument("--port", type=int, default=31000, help="Port to listen on")
     parser.add_argument("--data-dir", dest="data_dir", default=None,
                         help="User data directory (for DB + settings persistence)")

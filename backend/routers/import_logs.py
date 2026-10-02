@@ -208,6 +208,7 @@ class PullProfileRequest(BaseModel):
     private_key: Optional[str] = None
     domain: Optional[str] = None
     log_paths: list[str] = []
+    schedule: str = "off"
 
 
 def _profile_public(p: PullProfile) -> dict:
@@ -215,6 +216,8 @@ def _profile_public(p: PullProfile) -> dict:
         "id": p.id, "label": p.label, "host": p.host, "port": p.port,
         "username": p.username, "auth_mode": p.auth_mode, "domain": p.domain or "",
         "log_paths": json.loads(p.log_paths or "[]"), "has_secret": bool(p.secret_enc),
+        "schedule": p.schedule or "off",
+        "last_run_at": p.last_run_at.isoformat() if p.last_run_at else None,
     }
 
 
@@ -304,10 +307,12 @@ async def list_profiles(_=Depends(require_admin)):
 async def save_profile(body: PullProfileRequest, _=Depends(require_admin)):
     from sqlalchemy import select as sa_select
     label = body.label.strip()[:120]
-    if not label or not body.host.strip() or not body.username.strip():
-        raise HTTPException(status_code=422, detail="Label, host and username are required.")
-    if body.auth_mode not in ("password", "key"):
-        raise HTTPException(status_code=422, detail="auth_mode must be 'password' or 'key'.")
+    if not label or (body.host.strip() and not body.username.strip()):
+        raise HTTPException(status_code=422, detail="A name and server login are required.")
+    if body.schedule not in ("hourly", "6h", "daily", "off"):
+        raise HTTPException(status_code=422, detail="Invalid import schedule.")
+    if body.auth_mode not in ("password", "key", "local") or (body.auth_mode == "local") != (not body.host.strip()):
+        raise HTTPException(status_code=422, detail="Choose a valid server login method.")
     secret = (body.password if body.auth_mode == "password" else body.private_key) or ""
 
     async with AsyncSessionLocal() as db:
@@ -318,6 +323,7 @@ async def save_profile(body: PullProfileRequest, _=Depends(require_admin)):
         target_changed = (p.host, p.port, p.username, p.auth_mode) != (body.host.strip(), body.port, body.username.strip(), body.auth_mode)
         p.host, p.port, p.username, p.auth_mode = body.host.strip(), body.port, body.username.strip(), body.auth_mode
         p.domain = (body.domain or "").strip()
+        p.schedule = body.schedule
         p.log_paths = json.dumps([x for x in body.log_paths if isinstance(x, str)][:50])
         if secret.strip():
             p.secret_enc = secret_box.encrypt(secret)
@@ -352,8 +358,11 @@ async def list_servers(_=Depends(require_admin)):
 async def import_upload(
     file: UploadFile = File(...),
     domain: str = Form(...),
+    schedule: str = Form("off"),
     _=Depends(require_admin),
 ):
+    if schedule not in ("hourly", "6h", "daily", "off"):
+        raise HTTPException(status_code=422, detail="Invalid import schedule.")
     suffix = os.path.splitext(file.filename or ".log")[1] or ".log"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp_path = tmp.name
@@ -374,7 +383,38 @@ async def import_upload(
         except OSError:
             pass
 
+    label = f"Uploaded file: {domain}"[:120]
+    from sqlalchemy import select as sa_select
+    async with AsyncSessionLocal() as db:
+        profile = (await db.execute(sa_select(PullProfile).where(PullProfile.label == label))).scalar_one_or_none()
+        if schedule != "off":
+            directory = os.environ.get("HIGASHI_IMPORT_DIR") or os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "imported_logs")
+            os.makedirs(directory, mode=0o700, exist_ok=True)
+            saved_path = os.path.join(directory, f"{uuid.uuid4().hex}{suffix}")
+            with open(saved_path, "wb") as saved:
+                saved.write(content)
+            os.chmod(saved_path, 0o600)
+            if profile is None:
+                profile = PullProfile(label=label, host="", username="", auth_mode="local")
+                db.add(profile)
+            profile.domain, profile.log_paths, profile.schedule = domain, json.dumps([saved_path]), schedule
+        elif profile is not None:
+            profile.schedule = "off"
+        await db.commit()
     return result
+
+
+@router.post("/local")
+async def import_local(body: dict, _=Depends(require_admin)):
+    path, domain = body.get("log_path", ""), body.get("domain", "")
+    if not isinstance(path, str) or not os.path.isabs(path) or not os.path.isfile(path):
+        raise HTTPException(status_code=422, detail="Choose a log file on this server.")
+    if not isinstance(domain, str) or not domain:
+        raise HTTPException(status_code=422, detail="Choose a site first.")
+    try:
+        return await _import_with_optional_detection(filepath=path, domain=domain, db_url=settings.database_url, log_path=path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.post("/ssh/discover")

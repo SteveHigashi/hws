@@ -9,7 +9,7 @@ component also carries its own notice so you do not have to come back here.
 | **Higashi core** — the self-hosted analytics application | `backend/`, `frontend/`, `server/`, `softaculous/`, `docker-compose.yml`, `build-backend.sh` | **AGPL-3.0-or-later** (`LICENSE`) |
 | **Shared reading rules** | `backend/higashi_reading/` | **MIT** (`backend/higashi_reading/LICENSE`) |
 | **Browser tracker** — the snippet you embed in your own site | `tracker/` | **MIT** (`tracker/LICENSE`) |
-| **Higashi Live** — the paid hosted service | *not in this repository* | **Proprietary**, all rights reserved |
+| **Higashi Live** — the paid hosted service | not in this repository | **Proprietary** — all rights reserved |
 | **Name, logo and brand** | — | Not licensed by any of the above. See `TRADEMARK.md`. |
 
 ## Why the tracker is MIT
@@ -20,11 +20,6 @@ It is MIT so that question never arises: **embedding the Higashi tracker places 
 licence obligation on your website whatsoever.**
 
 Running the Higashi *server* is a different matter — that is the AGPL part.
-
-Higashi Live is separate, proprietary software and its source is not distributed
-here. What *is* here, and open, is the code this product uses to talk to it —
-`backend/routers/live.py`, `backend/services/live_client.py` and the dashboard's Live
-card — so you can read exactly what an install would send before deciding to use it.
 
 ## Why `higashi_reading` is MIT
 
@@ -55,3 +50,10 @@ If that does not suit you, a commercial licence is available. Ask.
 
 Contributions to the AGPL core are accepted under AGPL-3.0-or-later. Contributions to
 `tracker/` or `backend/higashi_reading/` are accepted under MIT. Say which you intend.
+
+## Where Higashi Live lives
+
+Not here. Live is proprietary and has its own repository. It was tracked in this one
+until 2026-10-02, which would have published the whole Live implementation the moment
+this repository went public; `release.sh` never packaged it, so no released tarball
+ever contained it. Higashi keeps only the client code needed to talk to Live.

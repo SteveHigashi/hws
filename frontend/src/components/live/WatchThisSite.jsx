@@ -117,9 +117,53 @@ export default function WatchThisSite() {
             {note && <p className="text-xs text-slate-500 mt-1">{note}</p>}
           </div>
 
-          {reading.paragraphs?.map((p, i) => (
-            <p key={i} className="text-sm text-slate-300 leading-relaxed">{p}</p>
-          ))}
+          {(() => {
+            // The reading arrives as a flat list of paragraphs, which renders as a wall.
+            // Three things are wrong with printing them straight:
+            //  - the robots.txt paragraph carries real newlines, and a <p> eats them,
+            //    so the block you are told to paste arrives as one unusable line;
+            //  - "X: no comparison to other sites" repeats once per crawler, which on a
+            //    site with ten crawlers is ten lines saying one thing;
+            //  - nothing distinguishes the lead from the notes beneath it.
+            const all = reading.paragraphs || [];
+            const NOCMP = /: no comparison to other sites \(that needs Higashi Live\)\.?$/;
+            const body = [];
+            let noCompare = 0;
+            for (const p of all) {
+              if (NOCMP.test(p)) { noCompare += 1; continue; }
+              body.push(p);
+            }
+            return (
+              <div className="space-y-4 max-w-[68ch]">
+                {body.map((p, i) => {
+                  if (p.includes("User-agent:")) {
+                    const lines = p.split("\n");
+                    const rules = lines.filter((l) => /^(User-agent|Disallow|Allow|Crawl-delay):/.test(l.trim()));
+                    const prose = lines.filter((l) => l.trim() && !/^(User-agent|Disallow|Allow|Crawl-delay):/.test(l.trim()));
+                    return (
+                      <div key={i} className="space-y-2">
+                        {prose[0] && <p className="text-sm text-slate-300 leading-relaxed">{prose[0]}</p>}
+                        <pre className="bg-surface-900 border border-surface-600 rounded-lg p-3 text-xs text-slate-200 overflow-x-auto font-mono whitespace-pre">{rules.join("\n")}</pre>
+                        {prose.slice(1).map((l, j) => (
+                          <p key={j} className="text-xs text-slate-500 leading-relaxed">{l}</p>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return (
+                    <p key={i} className={i === 0
+                      ? "text-base text-slate-200 leading-relaxed"
+                      : "text-sm text-slate-300 leading-relaxed"}>{p}</p>
+                  );
+                })}
+                {noCompare > 0 && (
+                  <p className="text-xs text-slate-500 leading-relaxed border-t border-surface-600 pt-3">
+                    No comparison to other sites for {noCompare} crawler{noCompare === 1 ? "" : "s"} — that needs Higashi Live.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {reading.changes?.length > 0 && (
             <div>

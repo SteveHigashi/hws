@@ -47,7 +47,7 @@ export default function Forgot() {
               <p className="text-xs text-slate-500">On the hosted reference install the command is prefixed with <code>sudo -u higashi HIGASHI_ENV_PATH=/etc/higashi/higashi.env /opt/higashi/.venv/bin/python</code> from <code>/opt/higashi/backend</code>.</p>
             </>
           )}
-          <p className="text-center text-xs"><Link to="/login" className="text-slate-500 hover:text-slate-300 underline">Back to sign in</Link></p>
+          <p className="text-center text-xs"><Link to="/login" className="text-slate-300 hover:text-white underline underline-offset-2">Back to sign in</Link></p>
         </div>
       </div>
     </div>

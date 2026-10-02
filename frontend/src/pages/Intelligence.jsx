@@ -155,8 +155,14 @@ function LiveSettingsPanel({ forceOpen }) {
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
               <span>Live key configured</span>
-              <button onClick={handleRemove} className="text-slate-600 hover:text-red-400 ml-2">Remove</button>
-              {saved && <button disabled className="ml-auto px-4 py-2 bg-violet-600 text-white text-sm rounded-lg">Saved ✓</button>}
+              <button
+                onClick={handleRemove}
+                className="ml-2 px-3 py-1 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-colors"
+                title="Remove the Higashi Live key and stop watching this site"
+              >
+                Remove Live key
+              </button>
+              {saved && <button disabled className="ml-auto px-4 py-2 bg-surface-700 text-slate-400 text-sm rounded-lg">Saved ✓</button>}
             </div>
           ) : (
             <div>
@@ -181,7 +187,7 @@ function LiveSettingsPanel({ forceOpen }) {
                 <button
                   onClick={() => handleSave(true)}
                   disabled={saving || !validKey}
-                  className="w-full sm:w-auto px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                  className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-slate-200 disabled:opacity-40 text-slate-900 text-sm rounded-lg transition-colors whitespace-nowrap"
                 >
                   {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
                 </button>
@@ -226,11 +232,26 @@ function LiveSettingsPanel({ forceOpen }) {
             </div>
           </div>
 
-          {watching && (siteType !== settings?.site_type || aiStance !== (settings?.stance || settings?.ai_stance)) && (
-            <button onClick={() => handleSave()} disabled={saving} className="text-xs text-accent hover:underline">
-              {saving ? "Saving…" : "Save changes to site type / AI stance"}
-            </button>
-          )}
+          {/* A real button, always on screen while watching. It used to be a bare text
+              link rendered only once a value changed: nothing to see, so nothing got
+              saved, and the stance looked like it was silently reverting. */}
+          {watching && (() => {
+            const dirty = siteType !== settings?.site_type || aiStance !== (settings?.stance || settings?.ai_stance);
+            return (
+              <button
+                onClick={() => handleSave()}
+                disabled={saving || !dirty}
+                className={
+                  "px-5 py-2.5 rounded-lg text-sm font-medium transition-colors " +
+                  (dirty && !saving
+                    ? "bg-white hover:bg-slate-200 text-slate-900"
+                    : "bg-surface-700 text-slate-500 cursor-not-allowed")
+                }
+              >
+                {saving ? "Saving…" : dirty ? "Save site type / AI stance" : "Saved"}
+              </button>
+            );
+          })()}
           {!watching && (
             <p className="text-xs text-slate-600">These shape the reading Live sends back — change them anytime.</p>
           )}
@@ -246,7 +267,7 @@ function LiveSettingsPanel({ forceOpen }) {
               type="text"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://intel.cloudanalyst.net"
+              placeholder="https://live.hws.jotnotes.com"
               className="mt-2 w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-violet-500/60"
             />
           </details>
@@ -486,7 +507,7 @@ function AISettingsPanel() {
                   {configured ? (
                     <>
                       <span className="text-xs text-green-400 font-mono">Configured</span>
-                      <button onClick={() => removeProviderKey(p)} className="text-xs text-slate-600 hover:text-red-400 ml-2">Remove</button>
+                      <button onClick={() => removeProviderKey(p)} className="text-xs ml-2 px-2.5 py-1 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-colors">Remove key</button>
                     </>
                   ) : (
                     <input
@@ -571,7 +592,7 @@ function AISettingsPanel() {
                 className="w-36 bg-surface-700 border border-surface-500 rounded-lg px-3 py-1.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-accent/60 font-mono"
               />
               <button onClick={handleSaveBudget} disabled={saving}
-                className="px-4 py-1.5 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white text-xs rounded-lg transition-colors">
+                className="px-4 py-1.5 bg-white hover:bg-slate-200 disabled:opacity-40 text-slate-900 text-xs rounded-lg transition-colors">
                 {saving ? "Saving…" : "Save"}
               </button>
               {saveMsg && <span className="text-xs text-green-400">{saveMsg}</span>}
@@ -826,7 +847,7 @@ function AskChat({ days, currentSiteId }) {
             <button
               onClick={handleSaveKey}
               disabled={saving || !keyInput.trim() || !securityAck}
-              className="px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+              className="px-4 py-2 bg-white hover:bg-slate-200 disabled:opacity-40 text-slate-900 text-sm rounded-lg transition-colors whitespace-nowrap"
             >
               {saving ? "Verifying…" : "Save & Verify"}
             </button>
@@ -884,7 +905,7 @@ function AskChat({ days, currentSiteId }) {
         {isAdmin && (
           <button
             onClick={handleRemoveKey}
-            className="text-xs text-slate-600 hover:text-red-400 transition-colors ml-2"
+            className="text-xs ml-2 px-2.5 py-1 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500 transition-colors"
             title="Remove API key"
           >
             Remove key
@@ -939,7 +960,7 @@ function AskChat({ days, currentSiteId }) {
         <button
           onClick={() => handleAsk(input)}
           disabled={streaming || !input.trim()}
-          className="px-4 py-2 bg-accent hover:bg-accent/80 disabled:opacity-40 text-white text-sm rounded-lg transition-colors"
+          className="px-4 py-2 bg-white hover:bg-slate-200 disabled:opacity-40 text-slate-900 text-sm rounded-lg transition-colors"
         >
           {streaming ? "…" : "Ask"}
         </button>

@@ -221,17 +221,7 @@
       });
     });
   });
-  // document.body does not exist yet if this script runs from <head>, and an uncaught
-  // TypeError here would stop everything below it — including the pageview send at the
-  // end of this file. People paste snippets wherever they like, so wait rather than throw.
-  if (document.body) {
-    mediaObserver.observe(document.body, { childList: true, subtree: true });
-  } else {
-    document.addEventListener("DOMContentLoaded", function () {
-      document.querySelectorAll("audio, video").forEach(attachMedia);
-      mediaObserver.observe(document.body, { childList: true, subtree: true });
-    });
-  }
+  mediaObserver.observe(document.body, { childList: true, subtree: true });
 
   // ─── JS Error tracking ────────────────────────────────────────────────────
   window.addEventListener("error", function (e) {

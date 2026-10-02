@@ -9,6 +9,11 @@ import asyncio
 import shlex
 import tempfile
 import os
+import json
+import logging
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import select
+from models.pull_profile import PullProfile
 
 from config import get_settings
 from database import init_db, AsyncSessionLocal
@@ -29,13 +34,28 @@ settings = get_settings()
 
 
 SYNC_INTERVAL = 300  # seconds
+logger = logging.getLogger(__name__)
+SCHEDULE_DELAYS = {"hourly": timedelta(hours=1), "6h": timedelta(hours=6), "daily": timedelta(days=1)}
+
+def profile_is_due(profile: PullProfile, now: datetime) -> bool:
+    delay = SCHEDULE_DELAYS.get(profile.schedule)
+    if not delay:
+        return False
+    if profile.last_run_at is None:
+        return True
+    last = profile.last_run_at
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return now - last >= delay
 
 async def _sync_logs():
     try:
         import asyncssh
     except ImportError:
-        return
+        asyncssh = None
     for server in import_logs.KNOWN_SERVERS:
+        if asyncssh is None:
+            break
         if not server.get("log_path") or not server.get("host"):
             continue
         try:
@@ -62,7 +82,63 @@ async def _sync_logs():
                     except Exception:
                         pass
         except Exception:
-            pass
+            logger.exception("Configured log import failed for %s", server.get("label"))
+
+    async with AsyncSessionLocal() as db:
+        profiles = (await db.execute(select(PullProfile).where(PullProfile.schedule != "off"))).scalars().all()
+        for profile in profiles:
+            if not profile_is_due(profile, datetime.now(timezone.utc)):
+                continue
+            try:
+                paths = json.loads(profile.log_paths or "[]")
+                if not isinstance(paths, list):
+                    raise ValueError("Expected a list of log paths")
+            except (TypeError, ValueError):
+                logger.exception("Invalid saved log paths for %s", profile.label)
+                continue
+            if not paths or not profile.domain:
+                continue
+            succeeded = True
+            for path in paths:
+                tmp_path = key_path = None
+                try:
+                    if profile.host:
+                        if asyncssh is None:
+                            raise RuntimeError("asyncssh is required for remote imports")
+                        credentials = import_logs.SSHCredentials(profile_id=profile.id)
+                        host, port, username, password, private_key = await import_logs._resolve_credentials(credentials)
+                        kwargs, key_path = import_logs._build_connect_kwargs(host, port, username, password, private_key)
+                        async with asyncssh.connect(**kwargs) as conn:
+                            suffix = ".log.gz" if path.endswith(".gz") else ".log"
+                            fd, tmp_path = tempfile.mkstemp(suffix=suffix)
+                            os.close(fd)
+                            try:
+                                async with conn.start_sftp_client() as sftp:
+                                    await sftp.get(path, tmp_path)
+                            except Exception:
+                                async with conn.create_process(f"cat {shlex.quote(path)}", encoding=None) as proc:
+                                    stdout, stderr = await proc.communicate()
+                                if proc.exit_status != 0:
+                                    raise RuntimeError((stderr or b"").decode(errors="replace"))
+                                with open(tmp_path, "wb") as output:
+                                    output.write(stdout or b"")
+                        filepath = tmp_path
+                    else:
+                        filepath = path
+                    await import_log_file(filepath=filepath, domain=profile.domain, db_url=settings.database_url, log_path=path)
+                except Exception:
+                    succeeded = False
+                    logger.exception("Scheduled import failed for %s: %s", profile.label, path)
+                finally:
+                    for temporary in (tmp_path, key_path):
+                        if temporary:
+                            try:
+                                os.unlink(temporary)
+                            except OSError:
+                                pass
+            if succeeded:
+                profile.last_run_at = datetime.now(timezone.utc)
+                await db.commit()
 
 async def _sync_loop():
     await asyncio.sleep(10)  # initial delay so DB is ready
@@ -88,7 +164,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Higashi Analytics",
+    title="HWS",
     version=settings.app_version,
     lifespan=lifespan,
 )

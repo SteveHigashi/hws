@@ -194,6 +194,7 @@ function TrackerSetupTab({ trackerKey: keyProp }) {
 // ---------------------------------------------------------------------------
 
 function UploadLogTab({ defaultDomain }) {
+  const [schedule, setSchedule] = useState("off");
   const [file, setFile]       = useState(null);
   const [domain, setDomain]   = useState(defaultDomain || "");
   const [loading, setLoading] = useState(false);
@@ -225,6 +226,7 @@ function UploadLogTab({ defaultDomain }) {
       const form = new FormData();
       form.append("file", file);
       form.append("domain", domain);
+      form.append("schedule", schedule);
       const { data } = await api.post("/admin/import/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -279,6 +281,11 @@ function UploadLogTab({ defaultDomain }) {
         />
       </Field>
 
+      <Field label="Repeat import">
+        <select value={schedule} onChange={(e) => setSchedule(e.target.value)} className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white">
+          <option value="off">Only when I press Import</option><option value="hourly">Hourly</option><option value="6h">Every 6 hours</option><option value="daily">Daily</option>
+        </select>
+      </Field>
       <div className="flex items-center gap-4">
         <SubmitButton loading={loading} label="Import Log" loadingLabel="Importing…" />
         {file && (
@@ -295,6 +302,36 @@ function UploadLogTab({ defaultDomain }) {
       <ResultBox result={result} error={error} />
     </form>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Local log files
+// ---------------------------------------------------------------------------
+
+function LocalLogTab({ defaultDomain }) {
+  const [path, setPath] = useState("");
+  const [schedule, setSchedule] = useState("off");
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  async function save() {
+    try {
+      await api.post("/admin/import/profiles", { label: `On this server: ${defaultDomain}`, host: "", username: "", auth_mode: "local", domain: defaultDomain, log_paths: [path], schedule });
+      setError("");
+    } catch (err) { setError(err.response?.data?.detail || "Could not save this log source."); }
+  }
+  async function importNow() {
+    setLoading(true); setError(""); setResult(null);
+    try { const { data } = await api.post("/admin/import/local", { log_path: path, domain: defaultDomain }); setResult(data); }
+    catch (err) { setError(err.response?.data?.detail || "Could not import that file."); }
+    finally { setLoading(false); }
+  }
+  return <div className="space-y-5 max-w-lg">
+    <Field label="Log file path"><Input value={path} onChange={(e) => setPath(e.target.value)} placeholder="/var/log/nginx/access.log" /></Field>
+    <Field label="Repeat import"><select value={schedule} onChange={(e) => setSchedule(e.target.value)} className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white"><option value="off">Only when I press Import</option><option value="hourly">Hourly</option><option value="6h">Every 6 hours</option><option value="daily">Daily</option></select></Field>
+    <div className="flex gap-3"><button type="button" onClick={importNow} disabled={loading || !path} className="px-5 py-2.5 bg-accent text-white text-sm rounded-lg disabled:opacity-50">{loading ? "Importing…" : "Import now"}</button><button type="button" onClick={save} disabled={!path} className="px-5 py-2.5 border border-surface-500 text-slate-300 text-sm rounded-lg disabled:opacity-50">Save source</button></div>
+    {error && <p className="text-sm text-danger">{error}</p>}<ResultBox result={result} error={null} />
+  </div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +429,7 @@ function classifyLog(name) {
 // ---------------------------------------------------------------------------
 
 function SSHPullTab({ defaultDomain }) {
+  const [schedule, setSchedule] = useState("off");
   const [form, setForm] = useState({
     host: "", port: "22", username: "", password: "", private_key: "",
     domain: defaultDomain || "",
@@ -474,6 +512,7 @@ function SSHPullTab({ defaultDomain }) {
     });
     setAuthMode(p.auth_mode || "password");
     setProfileId(p.id);
+    setSchedule(p.schedule || "off");
     const saved = p.log_paths || (p.log_path ? [p.log_path] : []);
     setSelectedPaths(new Set(saved));
     setDiscovered(null);
@@ -494,6 +533,7 @@ function SSHPullTab({ defaultDomain }) {
         private_key: authMode === "key"      ? form.private_key : undefined,
         log_paths:   [...selectedPaths],
         domain:      form.domain,
+        schedule,
       });
       setProfileId(data.id);
       setForm((f) => ({ ...f, password: "", private_key: "" }));
@@ -582,6 +622,12 @@ function SSHPullTab({ defaultDomain }) {
   return (
     <form onSubmit={submit} className="space-y-5 max-w-lg">
       <PullProfiles profiles={profiles} activeId={profileId} onLoad={loadProfile} onRemove={removeProfile} />
+
+      <Field label="Repeat import">
+        <select value={schedule} onChange={(e) => setSchedule(e.target.value)} className="w-full bg-surface-700 border border-surface-500 rounded-lg px-3 py-2 text-sm text-white">
+          <option value="off">Only when I press Import</option><option value="hourly">Hourly</option><option value="6h">Every 6 hours</option><option value="daily">Daily</option>
+        </select>
+      </Field>
 
       {/* ── Credentials ── */}
       <div className="grid grid-cols-3 gap-3">
@@ -786,7 +832,7 @@ function SSHPullTab({ defaultDomain }) {
 // Main Import page
 // ---------------------------------------------------------------------------
 
-const TABS = ["Tracker Setup", "Upload Log", "SSH Pull"];
+const TABS = ["Tracker Setup", "Upload Log", "SSH Pull", "Local Log"];
 
 export default function Import() {
   const [activeTab, setActiveTab] = useState("Tracker Setup");
@@ -810,6 +856,7 @@ export default function Import() {
         {activeTab === "Tracker Setup" && <TrackerSetupTab trackerKey={currentSite?.tracker_key} />}
         {activeTab === "Upload Log"    && <UploadLogTab defaultDomain={siteDomain} />}
         {activeTab === "SSH Pull"      && <SSHPullTab   defaultDomain={siteDomain} />}
+        {activeTab === "Local Log"     && <LocalLogTab  defaultDomain={siteDomain} />}
       </div>
     </div>
   );

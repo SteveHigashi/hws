@@ -1,8 +1,16 @@
 import httpx
 from typing import Dict
 
-# Uses ip-api.com (free tier, no key needed, 45 req/min)
-# Swap to MaxMind GeoLite2 for production / high volume
+from config import get_settings
+
+# ip-api.com, free tier: no key, 45 requests a minute, and NO TLS - the free tier
+# is plain HTTP only, so an enabled lookup sends the IP in clear text.
+#
+# This is OFF unless the operator sets EXTERNAL_GEO=true in their settings.env.
+# The gate lives in resolve_geo() rather than at the call sites deliberately:
+# three call sites reach this (the log importer, the log-import script and the
+# browser collector), and a gate per call site is how one of them quietly keeps
+# calling out after somebody adds a fourth.
 GEO_API = "http://ip-api.com/json/{ip}?fields=countryCode,regionName,city,as,timezone"
 
 _private_ranges = (
@@ -13,6 +21,8 @@ _private_ranges = (
 
 
 async def resolve_geo(ip: str) -> Dict[str, str]:
+    if not get_settings().external_geo:
+        return {}
     if any(ip.startswith(prefix) for prefix in _private_ranges):
         return {}
     try:

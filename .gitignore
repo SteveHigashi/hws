@@ -50,9 +50,29 @@ secrets.json
 *.db-wal
 *.db-shm
 
-# Build output — the installer runs `npm ci && npm run build`, so nothing prebuilt
-# needs to be committed. Keeping bundles in git made the repository large and the
-# diffs unreadable for no benefit.
-frontend/dist/
-frontend/dist.*/
-server/analytics/assets/
+# Higashi Live is PROPRIETARY and lives in its own repository (hws-live).
+# It was tracked here until 2026-10-02, which would have published the Live
+# implementation - ai_providers, auth, config, the lot - the moment this
+# repository went public. The working copy stays on disk; it is not part of the
+# open-source Higashi distribution and release.sh never packaged it.
+live/
+
+# Internal material. Not part of the open-source Higashi distribution and not
+# published: session tooling, stale handover notes, an unpublished article draft,
+# internal build prompts and planning docs, and - the ones that matter - the
+# commercial decision records for the PROPRIETARY Higashi Live service.
+CLAUDE.md
+NEXT_SESSION.md
+ARTICLE_contraction.md
+docs/LIVE_*
+docs/COPY_LIVE_*
+docs/*_PROMPT.md
+docs/DASHBOARD_REFERENCE_SWEEP_*
+docs/LAUNCH_GAP.md
+docs/TIMINGS_BEFORE_*
+docs/TRAFFIC_QUALITY_DASHBOARD_PLAN.md
+
+# A one-off migration for our own deployment box. It carries a host address and an
+# ssh key path, so it must not travel with the open-source product. Stays on disk.
+server/walkbox/migrate_dashboard_*.sh
+

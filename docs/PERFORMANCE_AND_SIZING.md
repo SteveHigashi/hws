@@ -28,7 +28,7 @@ hardware enter the conversation.
 The Intelligence page felt broken. Cards sat on "Checking AI status…" for around ten
 seconds on an install whose database is under a gigabyte.
 
-Measured on a 1 vCPU VPS: 1 vCPU, 1962 MB RAM, a 954 MB database, 571,007 events.
+Measured on the walk box: 1 vCPU, 1962 MB RAM, a 954 MB database, 571,007 events.
 
 | call | quiet server | while the page loads |
 |---|---|---|
@@ -105,7 +105,7 @@ capabilities, not as packages or distributions:
 
 - **Say what must be true, not how to make it true.** "Higashi needs a writable data
   directory and a way to run one long-lived process" — not "run this systemd unit".
-  systemd is how one deployment does it; it is not a requirement, and it does not exist on
+  systemd is how *our* walk box does it; it is not a requirement, and it does not exist on
   a Mac, on Alpine's default install, or inside many containers.
 - **Keep OS-specific things in deployment, never in the application.** Service files, cron
   timers, log rotation and package installs belong in a deploy script for a named platform.
@@ -130,7 +130,10 @@ capabilities, not as packages or distributions:
 
 ## See also
 
-- `docs/TIMINGS_BEFORE_2026-09-23.txt` — the measured baseline these numbers come from.
-- The same lesson landed once before: a regex classification was running over every event
-  on every request, and was fixed by classifying once at import instead of every time
-  anyone looked. Precompute beats optimise.
+- `~/deploys/higashi-analytics/measure_dashboard.sh` — the before/after timing harness,
+  including the cheap-call-under-load test. Output lands in
+  `~/deploys/higashi-analytics/evidence/`.
+- `docs/LIVE_BYOK_REVIEW.md` — the launch gate list, where the daily rollup sits.
+- `~/deploys/higashi-analytics/OPS_LOG.md`, 2026-09-19 and 2026-09-20 — the earlier round
+  of this same lesson: a regex classification running over every event on every request,
+  fixed by classifying once at import instead of every time anyone looked.

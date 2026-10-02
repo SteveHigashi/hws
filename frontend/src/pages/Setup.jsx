@@ -94,7 +94,7 @@ export default function Setup() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-2 h-2 rounded-full bg-accent pulse-dot" />
-                  <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">Higashi Analytics</span>
+                  <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">HWS</span>
                 </div>
                 <h2 className="text-xl font-semibold text-white">Welcome</h2>
                 <p className="text-sm text-slate-400 mt-2">

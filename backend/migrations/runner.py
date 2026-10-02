@@ -35,3 +35,9 @@ def apply_migrations(connection) -> None:
     except ImportError:
         return
     upgrade_passkeys(connection)
+
+    try:
+        from migrations.m008_profile_schedule import upgrade as upgrade_profile_schedule
+    except ImportError:
+        return
+    upgrade_profile_schedule(connection)

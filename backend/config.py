@@ -2,6 +2,19 @@ from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 
+def _version_from_file() -> str:
+    """The version in the VERSION file beside the install, or a dev marker."""
+    import pathlib as _p
+    for candidate in (_p.Path(__file__).resolve().parent.parent / "VERSION",):
+        try:
+            text = candidate.read_text().strip()
+            if text:
+                return text
+        except OSError:
+            pass
+    return "0.0.0-dev"
+
+
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://higashi:changeme@localhost:5432/higashi"
     secret_key: str = "changeme_generate_a_real_key"  # replaced at startup, see get_settings
@@ -13,7 +26,11 @@ class Settings(BaseSettings):
     site_name: str = ""
     admin_email: str = ""
     raw_event_retention_days: int = 90
-    app_version: str = "0.1.0"
+    # Read from the VERSION file the release ships, so an install can name its
+    # own build. It said 0.1.0 while release 0.2.3 was running, which is the
+    # same defect JDrive had: a box that cannot state what it is makes every
+    # support conversation start with a guess.
+    app_version: str = _version_from_file()
 
     anthropic_api_key: str = ""
     openai_api_key: str = ""
@@ -39,7 +56,24 @@ class Settings(BaseSettings):
     # (still local), "live" = Higashi Live's stored reading. Rules are the ceiling in all three.
     walk_reading_provider: str = "local"
     walk_reading_model: str = ""   # BYOK model id; empty = ai_default_model
-    live_url: str = "https://intel.cloudanalyst.net"
+    live_url: str = "https://live.hws.jotnotes.com"
+
+    # External IP geolocation. OFF by default, and it must stay off by default.
+    #
+    # When this is "on", every visitor IP seen by the log importer and by the
+    # browser collector is sent to ip-api.com - a third party, in the United
+    # States, over plain HTTP, because the free tier offers no TLS. An IP address
+    # is personal data. Higashi is sold and documented as self-hosted analytics
+    # that keeps a customer's data on their own server, so this cannot be the
+    # default and cannot be silent.
+    #
+    # Turning it on is the operator's informed choice, made in their own
+    # settings.env. Nothing else in Higashi contacts a third party.
+    #
+    # This is NOT covered by any research or product-improvement consent, and
+    # must never be bundled with one: that consent is about sharing data with
+    # JotNotes, this is about sending visitor IPs to an unrelated company.
+    external_geo: bool = False
     live_site_type: str = "other"
     live_ai_stance: str = "search_only"
     live_stance: str = ""   # five-way stance (higashi_reading.crawlers.STANCES); empty = meaning of live_ai_stance

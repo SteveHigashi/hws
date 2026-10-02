@@ -26,4 +26,10 @@
     <download>https://github.com/higashi-analytics/higashi-analytics/archive/refs/heads/main.zip</download>
     <ext>zip</ext>
   </files>
+
+  <screenshots>
+    <screenshot>screenshots/dashboard.jpg</screenshot>
+    <screenshot>screenshots/geo-visibility.jpg</screenshot>
+    <screenshot>screenshots/ai-crawlers.jpg</screenshot>
+  </screenshots>
 </softaculous>
