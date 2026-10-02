@@ -89,16 +89,30 @@ Nothing, unless you enable it. In full:
 
 | What | When | Where |
 |---|---|---|
-| Aggregate Live report | only if you configure an HWS Live key | `live.hws.jotnotes.com` |
-| Visitor IP, for geolocation | **only if you set `EXTERNAL_GEO=true`** | `ip-api.com` |
+| Aggregate Live report | only if you set `LIVE_KEY` | `live.hws.jotnotes.com/v1/report` |
+| Visitor IP, for geolocation | only if you set `EXTERNAL_GEO=true` | `ip-api.com` |
+| Aggregate research figures | only if you set `RESEARCH_SHARING=true` | `live.hws.jotnotes.com/v1/research` |
+
+All three are off in a default install: `LIVE_KEY` is empty, `EXTERNAL_GEO` is false and
+`RESEARCH_SHARING` is false.
 
 `EXTERNAL_GEO` is **off by default**. Turning it on sends each visitor IP to
 ip-api.com — a third party, in the United States, over plain HTTP, because their free
 tier offers no TLS. An IP address is personal data; leave it off unless you have
 decided that trade is one you want to make, and tell your visitors if you turn it on.
 
-There is no telemetry, no phone-home, no usage reporting and no research data
-collection in HWS. None exists in the code.
+**Research sharing is off by default**, and it is not HWS Live. Installing HWS, buying
+Live, entering a Live key and configuring Live all leave it off; you turn it on yourself
+under Account, and turning it off stops anything further being sent. It needs no Live
+key. When it is on, HWS shares the aggregate figures it has already worked out for your
+own dashboard — a one-way install id, the period, the site type and stance you chose,
+human pageview/session/engaged counts, per-crawler name, verification state, hits and
+bytes, and the catalogue-walk verdict — so JotNotes can improve HWS and HWS Live,
+improve crawler detection, study aggregate trends, and publish aggregate industry
+research, reports and white papers. It carries **no visitor IP addresses, URLs, request
+paths, user agents, credentials or raw logs**, and it is never sold.
+
+Apart from those three, there is no telemetry, no phone-home and no usage reporting.
 
 ---
 
