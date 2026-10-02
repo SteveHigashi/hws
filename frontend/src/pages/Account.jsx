@@ -19,8 +19,34 @@ export default function Account() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  // Research sharing lives HERE rather than beside the Live card on purpose: it
+  // is not Higashi Live, it needs no Live key, and nothing about buying or
+  // configuring Live may switch it on.
+  const [research, setResearch] = useState(null);
+  const [researchBusy, setResearchBusy] = useState(false);
+
   const load = () => api.get("/auth/passkeys").then(({ data }) => setKeys(data)).catch(() => setKeys([]));
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    api.get("/admin/settings/research").then(({ data }) => setResearch(data)).catch(() => setResearch(null));
+  }, []);
+
+  const toggleResearch = async (enabled) => {
+    setResearchBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await api.post("/admin/settings/research", { enabled });
+      setResearch((r) => ({ ...r, enabled }));
+      setMessage(enabled
+        ? "Thank you — aggregate figures will be shared from the next run."
+        : "Sharing is off. Nothing further will be sent.");
+    } catch (err) {
+      setError(err.response?.data?.detail || "The setting could not be saved");
+    } finally {
+      setResearchBusy(false);
+    }
+  };
 
   const add = async () => {
     setError("");
@@ -51,6 +77,49 @@ export default function Account() {
         <h1 className="text-xl font-semibold text-white">Account</h1>
         <p className="text-sm text-slate-500 mt-1">{email}</p>
       </div>
+
+      {research && (
+        <div className="bg-surface-800 border border-surface-600 rounded-xl p-5 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-slate-300">Help improve Higashi (optional)</p>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              You can choose to share the aggregate figures Higashi has already worked out for your own
+              dashboard. They may be used to improve Higashi and Higashi Live, improve crawler detection,
+              study trends across sites, and produce aggregate industry research, reports and white papers.
+            </p>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              This is not Higashi Live and needs no Live key. It is off until you turn it on, and turning it
+              off stops anything further being sent.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-400">What is shared</p>
+            <ul className="text-xs text-slate-500 mt-1 space-y-1 list-disc list-inside leading-relaxed">
+              {(research.what_is_shared || []).map((item) => (<li key={item}>{item}</li>))}
+            </ul>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">{research.never_shared}</p>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-sm text-slate-300">
+              {research.enabled ? "Sharing is on." : "Sharing is off."}
+            </p>
+            <button
+              type="button"
+              disabled={researchBusy}
+              onClick={() => toggleResearch(!research.enabled)}
+              className={`px-3 py-1.5 rounded-lg text-sm border transition ${
+                research.enabled
+                  ? "border-surface-600 text-slate-300 hover:bg-surface-700"
+                  : "border-accent text-accent hover:bg-accent hover:text-white"
+              } disabled:opacity-50`}
+            >
+              {researchBusy ? "Saving…" : research.enabled ? "Turn off sharing" : "Share aggregate figures"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-surface-800 border border-surface-600 rounded-xl p-5 space-y-4">
         <div>

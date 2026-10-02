@@ -22,6 +22,7 @@ from models.site import Site
 from models.live_reading import LiveReading
 from services.live_client import send_report
 from services.live_report import build_report
+from services.research_share import build_research_payload, send_research
 
 # Optional layer-2 feature (see backend/main.py) — this script still runs
 # without it, just always reporting "Insufficient data" for the walk.
@@ -46,8 +47,12 @@ async def _latest_walk_run(db, site_id):
 
 async def run():
     settings = get_settings()
-    if not settings.live_key:
-        print("[live_send] No Live key configured. Nothing to do.")
+    # Two independent jobs share this script because they share one report.
+    # Neither gates the other: an operator with no Live key may still have opted
+    # in to research sharing, and an operator who pays for Live is NOT opted in
+    # by paying.
+    if not settings.live_key and not settings.research_sharing:
+        print("[live_send] No Live key and research sharing is off. Nothing to do.")
         return
 
     engine = create_async_engine(settings.database_url, echo=False)
@@ -62,6 +67,23 @@ async def run():
 
         walk_run = await _latest_walk_run(db, site.id)
         report = await build_report(db, site, walk_run=walk_run)
+
+        # Research sharing: only if the operator switched it on, and derived from
+        # the report that already exists rather than collected separately.
+        if settings.research_sharing:
+            research = await send_research(
+                settings.research_url, build_research_payload(report)
+            )
+            if "error" in research:
+                print(f"[live_send] Research share failed (ignored): {research['error']}")
+            else:
+                print("[live_send] Research share sent.")
+
+        if not settings.live_key:
+            print("[live_send] No Live key. Research-only run complete.")
+            await engine.dispose()
+            return
+
         result = await send_report(settings.live_url, settings.live_key, report)
         if "error" in result:
             print(f"[live_send] Send failed: {result['error']}")

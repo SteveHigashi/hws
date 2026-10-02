@@ -232,6 +232,42 @@ _STANCE_OPTIONS = [
 ]
 
 
+class ResearchSharingRequest(BaseModel):
+    enabled: bool
+
+
+@router.get("/settings/research")
+async def get_research_settings(_=Depends(require_admin)):
+    """Voluntary research sharing. Separate endpoint from /settings/live on
+    purpose: the two must never be reachable through one another."""
+    from services.research_share import WHAT_IS_SHARED
+    settings = get_settings()
+    return {
+        "enabled": settings.research_sharing,
+        "what_is_shared": WHAT_IS_SHARED,
+        "purposes": [
+            "improving Higashi and Higashi Live",
+            "improving crawler detection and the research behind it",
+            "studying aggregate trends across sites",
+            "producing aggregate industry research, reports and white papers",
+        ],
+        "never_shared": "No visitor IP addresses, URLs, request paths, user agents, "
+                        "credentials or raw logs are ever included.",
+        "note": "This is not Higashi Live and needs no Live key. It is off until you "
+                "turn it on, and turning it off stops all future sharing.",
+    }
+
+
+@router.post("/settings/research")
+async def save_research_settings(body: ResearchSharingRequest, _=Depends(require_admin)):
+    try:
+        dotenv_set_key(_env_path(), "RESEARCH_SHARING", "true" if body.enabled else "false")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not write settings: {e}")
+    get_settings.cache_clear()
+    return {"ok": True, "enabled": get_settings().research_sharing}
+
+
 @router.get("/settings/live")
 async def get_live_settings(_=Depends(require_admin)):
     settings = get_settings()

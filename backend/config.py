@@ -74,6 +74,25 @@ class Settings(BaseSettings):
     # must never be bundled with one: that consent is about sharing data with
     # JotNotes, this is about sending visitor IPs to an unrelated company.
     external_geo: bool = False
+
+    # Voluntary research sharing. OFF by default, and it must stay off by default.
+    #
+    # When an operator deliberately turns this on, Higashi sends the aggregate
+    # figures it has ALREADY derived for the dashboard - crawler counts, session
+    # and pageview totals, the walk verdict - so JotNotes can improve Higashi and
+    # Higashi Live, improve detection, study trends, and publish aggregate
+    # industry research, reports and white papers.
+    #
+    # It is NOT the Live service and must never be enabled by any of: installing
+    # Higashi, buying Live, entering a Live key, or configuring Live. It needs no
+    # Live key and works for operators who have never bought anything. It carries
+    # no raw visitor IPs, URLs, paths, user agents, credentials or logs.
+    research_sharing: bool = False
+
+    # Same host as Live, a different path. The infrastructure is shared; the two
+    # are separate code paths, separate settings and separate endpoints, so that
+    # turning one on can never turn the other on.
+    research_url: str = "https://live.hws.jotnotes.com"
     live_site_type: str = "other"
     live_ai_stance: str = "search_only"
     live_stance: str = ""   # five-way stance (higashi_reading.crawlers.STANCES); empty = meaning of live_ai_stance

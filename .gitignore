@@ -76,3 +76,9 @@ docs/TRAFFIC_QUALITY_DASHBOARD_PLAN.md
 # ssh key path, so it must not travel with the open-source product. Stays on disk.
 server/walkbox/migrate_dashboard_*.sh
 
+# Internal product and commercial strategy. MONETIZATION_STRATEGY.md is the
+# pricing model and the free/paid split; these are planning documents, not part
+# of the open-source product. Missed in the 2026-10-02 publication scan because
+# that scan matched docs/ and LIVE_* and never looked at strategy/.
+strategy/
+

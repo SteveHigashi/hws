@@ -18,8 +18,12 @@ curl -fsSL https://hws.jotnotes.com/releases/install.sh | sudo sh
 
 **Requirements: Python 3.9 or newer, and systemd.** That is all. The frontend arrives
 already built, so there is no Node, no npm and no build step on the installing
-machine. The database is SQLite, created for you. There is no Docker, no PostgreSQL
-and no Redis.
+machine. The database is SQLite, created for you. PostgreSQL, Redis and Docker are
+**not** required and not used.
+
+There are `Dockerfile`s under `backend/` and `frontend/` for people who would rather
+run containers. They are optional and unsupported; the installer above is the
+supported path.
 
 The release is a signed tarball on our own host — checksum and Ed25519 signature are
 published beside it at <https://hws.jotnotes.com/releases/>. To install a specific
