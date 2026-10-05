@@ -1,128 +1,82 @@
 import StatTooltip from "../charts/StatTooltip";
 
-// The first screen, gate 6(c).
-//
-// The reference sweep (docs/DASHBOARD_REFERENCE_SWEEP_2026-09-20.md) found that none of
-// Plausible, Fathom, Umami, Cloudflare or Matomo puts human and automated traffic side by
-// side as two equal headline numbers. They lead with visitors and mention bots somewhere
-// below, if at all. That absence is the whole reason this product exists, so it is the
-// first thing on the page: how many people, how many machines, and how much of it looked
-// wrong — at the same size, in one glance.
-//
-// The split bar underneath is the point of the row. Two numbers invite arithmetic; a bar
-// answers "how much of my traffic is not people?" before you have finished reading it.
+function PeopleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
+      <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-1a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M3.5 19c.3-3.2 1.8-5 4.5-5s4.2 1.8 4.5 5M13 14c.7-.8 1.7-1.2 3-1.2 2.6 0 4 1.7 4.3 4.7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
 
-function Count({ tone, label, value, sub, tooltipId, loading }) {
+function AutomatedIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
+      <rect x="4" y="7" width="16" height="12" rx="3" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M12 3v4M8 13h.01M16 13h.01M8.5 16h7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PageviewIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
+      <path d="M2.8 12s3.3-5 9.2-5 9.2 5 9.2 5-3.3 5-9.2 5-9.2-5-9.2-5Z" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+function KpiCard({ icon, label, value, tooltipId, tone, children, loading }) {
   const tones = {
-    people: {
-      bar: "bg-emerald-400",
-      text: "text-emerald-300",
-      edge: "border-t-emerald-400/70",
-      glow: "from-emerald-500/[0.07]",
-    },
-    machines: {
-      bar: "bg-violet-400",
-      text: "text-violet-300",
-      edge: "border-t-violet-400/70",
-      glow: "from-violet-500/[0.07]",
-    },
-    wrong: {
-      bar: "bg-amber-400",
-      text: "text-amber-300",
-      edge: "border-t-amber-400/70",
-      glow: "from-amber-500/[0.07]",
-    },
+    people: { edge: "border-t-success", icon: "text-success bg-success/10" },
+    automated: { edge: "border-t-danger", icon: "text-danger bg-danger/10" },
+    pageviews: { edge: "border-t-accent", icon: "text-accent-glow bg-accent/10" },
   }[tone];
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-xl border border-surface-600 border-t-2 ${tones.edge}
-                  bg-gradient-to-b ${tones.glow} to-transparent bg-surface-800 px-5 py-4`}
-    >
-      <p className="text-[11px] uppercase tracking-[0.12em] text-slate-400 font-medium">
-        <StatTooltip id={tooltipId} value={value}>{label}</StatTooltip>
-      </p>
-      <p className={`mt-2 text-4xl sm:text-5xl font-semibold tabular-nums leading-none ${tones.text}`}>
+    <div className={`rounded-xl border border-surface-600 border-t-2 bg-surface-800 p-5 ${tones.edge}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
+          <StatTooltip id={tooltipId} value={value}>{label}</StatTooltip>
+        </p>
+        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${tones.icon}`}>{icon}</span>
+      </div>
+      <p className="mt-3 font-mono text-3xl font-semibold leading-none tabular-nums text-white sm:text-4xl">
         {loading ? <span className="text-slate-700">—</span> : (value ?? 0).toLocaleString()}
       </p>
-      <p className="mt-2 text-xs text-slate-400 leading-relaxed min-h-[2rem]">
-        {loading ? " " : sub}
-      </p>
+      <div className="mt-3 min-h-[1.25rem] text-xs text-slate-400">{loading ? "\u00a0" : children}</div>
     </div>
   );
 }
 
-export default function HeadlineCounts({ data, loading }) {
+export default function HeadlineCounts({ data, stats, loading }) {
   const people = data?.real_traffic_estimate ?? 0;
   const machines = data?.bot_visits ?? 0;
-  const suspicious = data?.suspicious_sessions ?? 0;
   const ai = data?.ai_crawlers ?? 0;
-  const otherBots = Math.max(0, machines - ai);
-
+  const otherBots = data?.known_bots ?? Math.max(0, machines - ai);
   const total = people + machines;
   const peopleShare = total ? (people / total) * 100 : 0;
   const machineShare = total ? (machines / total) * 100 : 0;
 
   return (
     <section className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Count
-          tone="people"
-          tooltipId="real_traffic"
-          label="People"
-          value={people}
-          loading={loading}
-          sub={
-            <>
-              {(data?.verified_humans ?? 0).toLocaleString()} verified ·{" "}
-              {(data?.likely_humans ?? 0).toLocaleString()} likely
-              {data?.traffic_confidence ? ` · ${data.traffic_confidence} confidence` : ""}
-            </>
-          }
-        />
-        <Count
-          tone="machines"
-          tooltipId="automated_traffic"
-          label="Automated"
-          value={machines}
-          loading={loading}
-          sub={
-            <>
-              {ai.toLocaleString()} AI crawler{ai === 1 ? "" : "s"} ·{" "}
-              {otherBots.toLocaleString()} other bot{otherBots === 1 ? "" : "s"}
-            </>
-          }
-        />
-        <Count
-          tone="wrong"
-          tooltipId="suspicious_sessions"
-          label="Looked wrong"
-          value={suspicious}
-          loading={loading}
-          sub="Sessions that behaved like scanners, or claimed to be something they were not"
-        />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <KpiCard icon={<PeopleIcon />} label="People" value={people} tooltipId="real_traffic" tone="people" loading={loading}>
+          <span className="text-success">{peopleShare.toFixed(1)}%</span> of traffic · {(data?.verified_humans ?? 0).toLocaleString()} verified
+        </KpiCard>
+        <KpiCard icon={<AutomatedIcon />} label="Automated" value={machines} tooltipId="automated_traffic" tone="automated" loading={loading}>
+          <span className="text-danger">{machineShare.toFixed(1)}%</span> of traffic · {ai.toLocaleString()} AI · {otherBots.toLocaleString()} other
+        </KpiCard>
+        {/* page_views counts rows in `events`, which holds non-bot traffic only; crawler
+            activity lives in `bot_visits` and is reported by the Automated card beside this
+            one. Labelling this "Pageviews" read as a site-wide total and quietly hid the
+            12k machine requests sitting next to it. */}
+        <KpiCard icon={<PageviewIcon />} label="Human pageviews" value={stats?.page_views} tooltipId="page_views" tone="pageviews" loading={loading || !stats}>
+          {(stats?.sessions ?? 0).toLocaleString()} sessions · excludes {machines.toLocaleString()} automated
+        </KpiCard>
       </div>
-
-      {/* The comparison the other dashboards never draw. */}
-      {!loading && total > 0 && (
-        <div>
-          <div className="flex h-2 w-full overflow-hidden rounded-full bg-surface-700">
-            <div className="bg-emerald-400/90" style={{ width: `${peopleShare}%` }} />
-            <div className="bg-violet-400/90" style={{ width: `${machineShare}%` }} />
-          </div>
-          <p className="mt-2 text-xs text-slate-400">
-            <span className="text-emerald-300 font-medium">{peopleShare.toFixed(0)}% people</span>
-            {" · "}
-            <span className="text-violet-300 font-medium">{machineShare.toFixed(0)}% machines</span>
-            {" — "}
-            {machineShare > peopleShare
-              ? "most of what reached your site this period was not a person."
-              : "of everything that reached your site this period."}
-          </p>
-        </div>
-      )}
-
-      {data?.note && <p className="text-xs text-amber-300/80">{data.note}</p>}
+      {data?.note && <p className="text-xs text-warn">{data.note}</p>}
     </section>
   );
 }

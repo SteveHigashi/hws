@@ -28,6 +28,7 @@ import LiveTraffic from "./LiveTraffic";
 import Import from "./Import";
 import CatalogueProtection from "./CatalogueProtection";
 import WatchThisSite from "../components/live/WatchThisSite";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 // ---------------------------------------------------------------------------
 // Country flag helper — maps 2-letter ISO code to flag emoji
@@ -63,6 +64,23 @@ function formatDuration(seconds) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// ---------------------------------------------------------------------------
+// Page label — path only
+// ---------------------------------------------------------------------------
+// The importer stores a full page_url ("https://example.com/vendor/contabo"), so
+// a list of pages on one site repeats the same origin on every row and spends the
+// truncation budget on the part that never varies. Show the path.
+function pagePath(page) {
+  const raw = page?.page || page?.path || page?.url || "";
+  if (!raw) return "—";
+  try {
+    const parsed = new URL(raw);
+    return (parsed.pathname + parsed.search) || "/";
+  } catch {
+    return raw; // already a bare path
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +264,73 @@ function qualityBar(kind) {
   return "bg-slate-500";
 }
 
+function SplitTooltip({ active, payload }) {
+  const item = payload?.[0];
+  if (!active || !item) return null;
+  return (
+    <div className="rounded-lg border border-surface-500 bg-surface-700 px-3 py-2 text-xs shadow-xl">
+      <p className="text-slate-400">{item.name}</p>
+      <p className="mt-1 font-mono font-semibold text-white">{(item.value ?? 0).toLocaleString()} visits</p>
+    </div>
+  );
+}
+
+function VisitorsSplit({ data, loading }) {
+  const people = data?.real_traffic_estimate ?? 0;
+  const ai = data?.ai_crawlers ?? 0;
+  const otherBots = data?.known_bots ?? 0;
+  const total = people + ai + otherBots;
+  const chartData = [
+    { name: "People", value: people, color: "#10b981" },
+    { name: "AI crawlers", value: ai, color: "#ef4444" },
+    { name: "Other bots", value: otherBots, color: "#f59e0b" },
+  ];
+
+  return (
+    <section className="rounded-xl border border-surface-600 bg-surface-800 p-5">
+      <div>
+        <h2 className="text-sm font-medium text-slate-200">Visitors vs Automated</h2>
+        <p className="mt-0.5 text-xs text-slate-500">Every visit, classified by who or what made it</p>
+      </div>
+      {loading ? (
+        <div className="flex h-[286px] items-center justify-center text-xs text-slate-500">Classifying traffic…</div>
+      ) : total === 0 ? (
+        <div className="flex h-[286px] items-center justify-center text-xs text-slate-500">No traffic data yet</div>
+      ) : (
+        <div className="mt-3 grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(170px,0.8fr)] xl:grid-cols-1 2xl:grid-cols-[minmax(180px,1fr)_minmax(170px,0.8fr)]">
+          <div className="relative h-[210px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={62} outerRadius={86} paddingAngle={2} stroke="#0d1220" strokeWidth={3}>
+                  {chartData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                </Pie>
+                <Tooltip content={<SplitTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-mono text-2xl font-semibold text-white">{total.toLocaleString()}</span>
+              <span className="text-[10px] uppercase tracking-wider text-slate-500">total visits</span>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {chartData.map((entry) => {
+              const percent = total ? (entry.value / total) * 100 : 0;
+              return (
+                <div key={entry.name} className="flex items-center gap-2 text-xs">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <span className="text-slate-400">{entry.name}</span>
+                  <span className="ml-auto font-mono text-slate-200">{entry.value.toLocaleString()}</span>
+                  <span className="w-12 text-right font-mono text-slate-500">{percent.toFixed(1)}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Overview page
 // ---------------------------------------------------------------------------
@@ -279,7 +364,7 @@ function Overview() {
       ["quality", `/analytics/traffic-quality?days=${days}`, PRIORITY.quick, setTrafficQuality],
       ["actors", `/ai-crawlers/crawlers?days=${days}`, PRIORITY.quick, setActors],
       ["geo", `/analytics/geo?days=${days}`, PRIORITY.quick, setGeo],
-      ["trend", `/analytics/timeseries?days=${days}`, PRIORITY.normal, setTimeseries],
+      ["trend", `/analytics/traffic-quality/timeseries?days=${days}`, PRIORITY.normal, setTimeseries],
       ["pages", `/analytics/top-pages?days=${days}&limit=5&traffic=humans`, PRIORITY.normal, setTopPages],
       ["stats", `/analytics/overview?days=${days}`, PRIORITY.slow, setStats],
       ["suspicious", `/analytics/suspicious-traffic?days=${days}&limit=8`, PRIORITY.slow, setSuspiciousTraffic],
@@ -328,11 +413,10 @@ function Overview() {
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-white">Overview</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Real-time analytics dashboard</p>
+          <p className="text-xs text-slate-500 mt-0.5">People, crawlers, and site activity at a glance</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <LiveNow />
@@ -354,97 +438,128 @@ function Overview() {
         </div>
       </div>
 
-      <WatchThisSite />
+      <HeadlineCounts data={trafficQuality} stats={stats} loading={!ready.quality} />
 
-      {/* Gate 6(c): people and machines as equals, then who fetched you and what they took.
-          Both read from traffic-quality and the crawler breakdown — 1.5 s and 2.2 s — so the
-          first screen is answerable long before the 7 s window scan behind the cards below. */}
-      <HeadlineCounts data={trafficQuality} loading={!ready.quality} />
-
-      <WhoFetchedYou rows={actors} loading={!ready.actors} />
-
-      <p className="text-xs text-slate-500">
-        In the last {days} days · average time spent{" "}
-        <StatTooltip id="avg_time_spent" value={stats?.avg_session_duration} showIcon={false}>
-          {formatDuration(stats?.avg_session_duration)}
-        </StatTooltip>
+      <div className="-mt-3 text-xs text-slate-500">
+        Last {days} days · average time spent{" "}
+        <StatTooltip id="avg_time_spent" value={stats?.avg_session_duration} showIcon={false}>{formatDuration(stats?.avg_session_duration)}</StatTooltip>
         {" · "}
-        <StatTooltip id="raw_sessions" value={stats?.sessions} showIcon={false}>
-          {stats?.sessions?.toLocaleString() ?? "—"} raw sessions before filtering
-        </StatTooltip>
-      </p>
-
-      {/* Stat cards — row 1 */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard id="verified_humans" label="Verified Humans" value={stats?.verified_humans?.toLocaleString()} accent />
-        <StatCard id="likely_humans" label="Likely Humans" value={stats?.likely_humans?.toLocaleString()} sub={stats?.has_js_proof ? "with proof mix" : "log estimate"} />
-        <StatCard id="avg_time_spent" label="Avg. Time Spent" value={stats?.avg_session_duration == null ? null : formatDuration(stats.avg_session_duration)} sub="per real session" />
-        <StatCard id="ai_crawlers" label="AI Crawlers" value={stats?.ai_crawlers?.toLocaleString()} sub="bot visits" />
-      </div>
-      {/* Stat cards — row 2 */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard id="suspicious_sessions" label="Suspicious Sessions" value={stats?.suspicious_sessions?.toLocaleString()} sub="scanner/noise" />
-        <StatCard id="known_bots" label="Known Bots" value={stats?.known_bots?.toLocaleString()} sub="non-AI bot visits" />
-        <StatCard id="page_views" label="Page Views" value={stats?.page_views?.toLocaleString()} />
-        <StatCard id="errors_404" label="404 Errors" value={stats?.errors_404?.toLocaleString()} sub={stats?.errors_404 > 0 ? "triaged below" : "clean"} />
+        <StatTooltip id="raw_sessions" value={stats?.sessions} showIcon={false}>{stats?.sessions?.toLocaleString() ?? "—"} raw sessions</StatTooltip>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <WhoFetchedYou rows={actors} loading={!ready.actors} />
+        <VisitorsSplit data={trafficQuality} loading={!ready.quality} />
+      </div>
+
+      <TrafficChart data={timeseries} />
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
+          <div className="mb-4">
+            <p className="text-sm font-medium text-slate-200">Top Pages</p>
+            <p className="mt-0.5 text-xs text-slate-500">Where real visitors spent their attention</p>
+          </div>
+          {!ready.pages ? (
+            <p className="text-xs text-slate-500">Loading...</p>
+          ) : !Array.isArray(topPages) || topPages.length === 0 ? (
+            <p className="text-xs text-slate-500">No data yet</p>
+          ) : (() => {
+            // Log-imported rows have no client-side timing, so avg_duration is null for
+            // every page and the column renders as a stack of dashes. Show it only when
+            // at least one page actually has a figure.
+            const hasDuration = topPages.some((p) => p?.avg_duration != null);
+            return (
+            <div className="space-y-3">
+              {topPages.map((page, index) => {
+                const width = topPages[0]?.views ? Math.max(4, ((page?.views ?? 0) / topPages[0].views) * 100) : 0;
+                return (
+                  <div key={`${page?.page || page?.path || "page"}-${index}`}>
+                    <div className="mb-1.5 flex items-center gap-3 text-xs">
+                      <span className="w-5 font-mono text-slate-600">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="min-w-0 flex-1 truncate font-mono text-slate-300">{pagePath(page)}</span>
+                      <span className="font-mono text-slate-300"><StatTooltip id="top_page_views" value={page?.views} showIcon={false}>{(page?.views ?? 0).toLocaleString()}</StatTooltip></span>
+                      {hasDuration && (
+                        <span className="w-12 text-right text-slate-500"><StatTooltip id="top_page_time" value={page?.avg_duration} showIcon={false}>{formatDuration(page?.avg_duration)}</StatTooltip></span>
+                      )}
+                    </div>
+                    <div className="ml-8 h-1 overflow-hidden rounded-full bg-surface-600">
+                      <div className="h-full rounded-full bg-accent" style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            );
+          })()}
+        </div>
+
+        <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
+          <div className="mb-4">
+            <p className="text-sm font-medium text-slate-200">Geography</p>
+            <p className="mt-0.5 text-xs text-slate-500">Countries sending the most real visitors</p>
+          </div>
+          {!ready.geo ? (
+            <p className="text-xs text-slate-500">Loading...</p>
+          ) : !Array.isArray(geo) || geo.length === 0 ? (
+            <p className="text-xs text-slate-500">No data yet</p>
+          ) : (
+            <div className="space-y-3">
+              {geo.slice(0, 5).map((country, index) => {
+                const peak = geo[0]?.visitors ?? geo[0]?.visits ?? 0;
+                const visits = country?.visitors ?? country?.visits ?? 0;
+                const width = peak ? Math.max(4, (visits / peak) * 100) : 0;
+                return (
+                  <div key={`${country?.country || "unknown"}-${index}`}>
+                    <div className="mb-1.5 flex items-center gap-2 text-xs">
+                      <span className="text-base">{countryFlag(country?.country) || "🌐"}</span>
+                      <span className="text-slate-300">{country?.country || "Unknown"}</span>
+                      <span className="ml-auto font-mono text-slate-300"><StatTooltip id="top_country_visitors" value={visits} showIcon={false}>{visits.toLocaleString()}</StatTooltip></span>
+                    </div>
+                    <div className="ml-7 h-1 overflow-hidden rounded-full bg-surface-600">
+                      <div className="h-full rounded-full bg-pulse" style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium text-slate-200">Watch this site</h2>
+          <p className="mt-0.5 text-xs text-slate-500">Plain-language monitoring detail and crawler activity</p>
+        </div>
+        <WatchThisSite />
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-sm font-medium text-slate-200">Supporting metrics</h2>
+          <p className="mt-0.5 text-xs text-slate-500">The detail behind the headline numbers</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard id="verified_humans" label="Verified Humans" value={stats?.verified_humans?.toLocaleString()} accent />
+          <StatCard id="likely_humans" label="Likely Humans" value={stats?.likely_humans?.toLocaleString()} sub={stats?.has_js_proof ? "with proof mix" : "log estimate"} />
+          <StatCard id="avg_time_spent" label="Avg. Time Spent" value={stats?.avg_session_duration == null ? null : formatDuration(stats.avg_session_duration)} sub="per real session" />
+          <StatCard id="ai_crawlers" label="AI Crawlers" value={stats?.ai_crawlers?.toLocaleString()} sub="bot visits" />
+          <StatCard id="suspicious_sessions" label="Suspicious Sessions" value={stats?.suspicious_sessions?.toLocaleString()} sub="scanner/noise" />
+          <StatCard id="known_bots" label="Known Bots" value={stats?.known_bots?.toLocaleString()} sub="non-AI bot visits" />
+          <StatCard id="page_views" label="Page Views" value={stats?.page_views?.toLocaleString()} />
+          <StatCard id="errors_404" label="404 Errors" value={stats?.errors_404?.toLocaleString()} sub={stats?.errors_404 > 0 ? "triaged below" : "clean"} />
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <TrafficQualityPanel data={trafficQuality} loading={!ready.quality} />
         <ScannerNoisePanel data={suspiciousTraffic} loading={!ready.suspicious} />
       </div>
 
-      {/* Traffic chart */}
-      <TrafficChart data={timeseries} />
-
-      {/* Bottom row — pages + countries */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
-          <p className="text-sm font-medium text-slate-300 mb-1">Where your real visitors went</p>
-          <p className="text-xs text-slate-500 mb-4">Pages and time spent, real visitors only</p>
-          {!ready.pages ? (
-            <p className="text-xs text-slate-500">Loading...</p>
-          ) : topPages.length === 0 ? (
-            <p className="text-xs text-slate-500">No data yet</p>
-          ) : (
-            <div className="space-y-2">
-              {topPages.map((p, i) => (
-                <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-300 truncate max-w-[220px] font-mono text-xs">{p.page}</span>
-                  <span className="flex items-center gap-3 shrink-0 ml-4">
-                    <span className="text-slate-400"><StatTooltip id="top_page_views" value={p.views} showIcon={false}>{p.views.toLocaleString()} views</StatTooltip></span>
-                    <span className="text-slate-500 text-xs"><StatTooltip id="top_page_time" value={p.avg_duration} showIcon={false}>{formatDuration(p.avg_duration)}</StatTooltip></span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="bg-surface-800 border border-surface-600 rounded-xl p-5">
-          <p className="text-sm font-medium text-slate-300 mb-4">Top Countries</p>
-          {!ready.geo ? (
-            <p className="text-xs text-slate-500">Loading...</p>
-          ) : geo.length === 0 ? (
-            <p className="text-xs text-slate-500">No data yet</p>
-          ) : (
-            <div className="space-y-2">
-              {geo.slice(0, 5).map((g, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  <span className="shrink-0">{countryFlag(g.country) || "🌐"}</span>
-                  <span className="text-slate-300">{g.country || "Unknown"}</span>
-                  <span className="text-slate-400 ml-auto"><StatTooltip id="top_country_visitors" value={g.visitors} showIcon={false}>{g.visitors.toLocaleString()}</StatTooltip></span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Recent Visitors feed */}
       <RecentVisitors />
 
-      {/* Intelligence + Realtime strip */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <InsightsFeed insights={insights} loading={insightsLoading} enrichMeta={enrichMeta} enrichLoading={enrichLoading} />
         <RealtimeFeed />
       </div>
