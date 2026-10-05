@@ -5,6 +5,46 @@ Format: version · date · what changed · why it matters.
 
 ---
 
+## v0.2.4 — 2026-10-05
+
+Cut with `./release/release.sh 0.2.4`. Requirements are unchanged from 0.2.3:
+Python 3.9+ and systemd, frontend shipped built, SQLite. No Docker, PostgreSQL,
+Redis or Node is needed to install.
+
+- **The command-line log importer no longer destroys crawler history.**
+  `scripts/import_logs.py` carried its own copy of the parse-and-insert loop, and
+  that copy had drifted from `services/log_importer.py`. It built `BotVisit` rows
+  with no timestamp, so every imported crawler visit fell back to the column
+  default of import time: importing a month of logs put the entire month of
+  crawler activity on the day you ran the import, and the visits-over-time chart
+  was meaningless. The same rows were written without `verification_state`,
+  `ip_hash`, `http_status`, `response_bytes` or `referrer`, so the verification
+  evidence was lost too and every crawler read as unverified no matter where it
+  came from. That silently disabled the AI Visibility Index, Verified AI Visits
+  and the verified/unverified/forged classification for anyone who onboarded by
+  importing logs, which is the documented way to onboard. The script is now a
+  thin wrapper around `import_log_file`, the same path the in-app importer uses,
+  so both produce identical rows. `tests/test_cli_import_parity.py` pins the
+  timestamp and the five evidence fields, and asserts the CLI does not build
+  `BotVisit` rows itself so the two cannot drift again.
+- **The Overview page is rebuilt around the numbers.** It used to open with the
+  written reading, roughly ten paragraphs, so every figure sat below the fold,
+  followed by eight identical stat cards that gave no hierarchy. Order is now
+  headline counts, crawler breakdown and share, visits over time, top pages and
+  geography, then the written reading, then the secondary stats.
+- The third headline card said "Pageviews" while counting only non-bot rows. It
+  reads **Human pageviews** now and names the automated traffic it excludes.
+- Visits over time is **two independently scaled charts** rather than one. People
+  and automated traffic differ by two orders of magnitude, so a shared axis
+  flattened the human series onto the baseline; a second y-axis would have
+  invited a comparison between two scales. Each series now has its own panel and
+  its own daily peak, sharing the time range.
+- Top Pages shows the path instead of repeating the full origin on every row, and
+  its average-duration column, which is empty for log-imported pages, appears
+  only when there is a figure to show.
+
+---
+
 ## v0.2.3 — 2026-10-02
 
 Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.3/> with a
