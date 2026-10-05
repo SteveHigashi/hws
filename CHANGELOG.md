@@ -7,9 +7,10 @@ Format: version · date · what changed · why it matters.
 
 ## v0.2.4 — 2026-10-05
 
-Cut with `./release/release.sh 0.2.4`. Requirements are unchanged from 0.2.3:
-Python 3.9+ and systemd, frontend shipped built, SQLite. No Docker, PostgreSQL,
-Redis or Node is needed to install.
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.4/> with a
+one-line installer. Requirements are unchanged from 0.2.3: Python 3.9+ and systemd,
+frontend shipped built, SQLite. No Docker, PostgreSQL, Redis or Node is needed to
+install.
 
 - **The command-line log importer no longer destroys crawler history.**
   `scripts/import_logs.py` carried its own copy of the parse-and-insert loop, and
