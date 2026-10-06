@@ -13,6 +13,7 @@ _CRAWLER_REGISTRY = [
     # AI training / inference crawlers
     {"name": "GPTBot",            "pattern": r"GPTBot",              "category": "ai_crawler", "avi_weight": 1.5, "reach_mult": 200, "description": "OpenAI training crawler"},
     {"name": "ChatGPT-User",      "pattern": r"ChatGPT-User",        "category": "ai_crawler", "avi_weight": 1.5, "reach_mult": 200, "description": "OpenAI real-time browsing"},
+    {"name": "OAI-SearchBot",     "pattern": r"OAI-SearchBot",       "category": "ai_crawler", "avi_weight": 1.5, "reach_mult": 200, "description": "OpenAI ChatGPT Search indexing"},
     {"name": "ClaudeBot",         "pattern": r"ClaudeBot|anthropic-ai", "category": "ai_crawler", "avi_weight": 1.3, "reach_mult": 50,  "description": "Anthropic / Claude"},
     {"name": "PerplexityBot",     "pattern": r"PerplexityBot",       "category": "ai_crawler", "avi_weight": 1.2, "reach_mult": 25,  "description": "Perplexity AI"},
     {"name": "Google-Extended",   "pattern": r"Google-Extended",     "category": "ai_crawler", "avi_weight": 1.2, "reach_mult": 150, "description": "Google Gemini training"},
@@ -93,6 +94,29 @@ _NETWORK_RULES = {
     },
     "PerplexityBot": {
         "groups": ("perplexitybot",),
+        "suffixes": (),
+    },
+    # OpenAI publishes a separate prefix feed per crawler purpose, so each name
+    # is checked against its own feed rather than a shared pool: an address that
+    # is legitimate for ChatGPT-User is not thereby legitimate for GPTBot.
+    # No FCrDNS suffix is listed because OpenAI publishes no reverse-DNS
+    # contract; inventing one would manufacture evidence.
+    "GPTBot": {
+        "groups": ("gptbot",),
+        "suffixes": (),
+    },
+    "OAI-SearchBot": {
+        "groups": ("oai-searchbot",),
+        "suffixes": (),
+    },
+    "ChatGPT-User": {
+        "groups": ("chatgpt-user",),
+        "suffixes": (),
+    },
+    # Ahrefs publishes an official prefix feed. No reverse-DNS contract is
+    # claimed here for the same reason as OpenAI: none is published.
+    "AhrefsBot": {
+        "groups": ("ahrefsbot",),
         "suffixes": (),
     },
     # These operators publish a stable FCrDNS contract but no prefix feed in

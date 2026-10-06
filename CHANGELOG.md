@@ -5,6 +5,32 @@ Format: version · date · what changed · why it matters.
 
 ---
 
+## v0.2.8 — 2026-10-06
+
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.8/> with a
+one-line installer. Requirements are unchanged: Python 3.9+ and systemd.
+
+- **OpenAI crawlers can now be verified or caught impersonating.** GPTBot,
+  OAI-SearchBot and ChatGPT-User are checked against the prefix feeds OpenAI
+  publishes for each of them. Until now the two most common AI crawlers on most
+  sites could only ever read `unverified`, because no feed was wired in. OpenAI
+  publishes one feed per crawler purpose and HWS checks each separately, so an
+  address that is legitimate for ChatGPT-User does not thereby authenticate a
+  GPTBot claim. OAI-SearchBot was not previously recognised at all and now is.
+  No reverse-DNS contract is claimed for these, because OpenAI publishes none.
+- **AhrefsBot is verified against Ahrefs' own published ranges.** Same mechanism,
+  same official-source rule.
+- The new feeds join the existing freshness system unchanged: stale data makes no
+  prefix-based claim in either direction, a failed refresh keeps the previous
+  prefixes, and carried-forward data does not receive a new freshness stamp.
+  `MINIMUMS` floors are set near half of what each feed publishes today, so a
+  truncated response is refused rather than allowed to shrink good data.
+- **ClaudeBot stays recognised and unverified.** Anthropic publishes no
+  authoritative IP-range source. A test pins this, so it cannot later be wired to
+  a third-party list to make the catalogue look complete.
+
+---
+
 ## v0.2.7 — 2026-10-06
 
 Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.7/> with a

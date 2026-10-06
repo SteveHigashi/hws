@@ -27,6 +27,14 @@ FEEDS = {
     "duckduckbot": ["https://duckduckgo.com/duckduckbot.json"],
     "duckassistbot": ["https://duckduckgo.com/duckassistbot.json"],
     "perplexitybot": ["https://www.perplexity.ai/perplexitybot.json"],
+    # OpenAI, one official feed per crawler purpose. These are the addresses
+    # OpenAI publishes itself; note the search feed is searchbot.json, not the
+    # oai-searchbot.json that the crawler's own name suggests, which 404s.
+    "gptbot": ["https://openai.com/gptbot.json"],
+    "oai-searchbot": ["https://openai.com/searchbot.json"],
+    "chatgpt-user": ["https://openai.com/chatgpt-user.json"],
+    # Ahrefs publishes its crawler ranges in the same shape as Google and OpenAI.
+    "ahrefsbot": ["https://api.ahrefs.com/v3/public/crawler-ip-ranges"],
 }
 MINIMUMS = {
     "googlebot": 50,
@@ -36,6 +44,13 @@ MINIMUMS = {
     "applebot": 5,
     "duckduckbot": 20,
     "perplexitybot": 2,
+    # Floors sit around half of what each OpenAI feed publishes today (18, 39
+    # and 230 prefixes), so a feed that comes back truncated or half-built is
+    # refused rather than allowed to shrink good data.
+    "gptbot": 8,
+    "oai-searchbot": 18,
+    "chatgpt-user": 100,
+    "ahrefsbot": 40,
 }
 DEFAULT_DEST = Path(__file__).resolve().parent.parent / "data" / "crawler_ranges.json"
 
