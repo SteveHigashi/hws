@@ -5,6 +5,24 @@ Format: version · date · what changed · why it matters.
 
 ---
 
+## v0.2.7 — 2026-10-06
+
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.7/> with a
+one-line installer. Requirements are unchanged: Python 3.9+ and systemd.
+
+- **The installer no longer fails partway through on a stock Debian or Ubuntu
+  server.** It checked for `python3`, `curl`, `tar`, `openssl` and systemd, all of
+  which a fresh Ubuntu 24.04 has, and then called `python3 -m venv`, which those
+  distributions cannot complete without a separate package. The install died with
+  a pip traceback after it had already begun writing. It now checks that
+  `python3 -m venv` can actually finish, before anything is created, and if it
+  cannot it stops with the exact command to run:
+  `sudo apt-get install -y python3.12-venv`, naming the Python version actually
+  present. Nothing is left behind to clean up. This affected every Debian and
+  Ubuntu install, which is to say most of them.
+
+---
+
 ## v0.2.6 — 2026-10-06
 
 Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.6/> with a

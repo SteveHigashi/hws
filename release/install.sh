@@ -47,6 +47,26 @@ for cmd in python3 curl tar openssl; do
 done
 python3 -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,9) else 1)' \
   || die "Python 3.9+ is required. Found: $(python3 --version 2>&1)"
+
+# python3 being present does not mean `python3 -m venv` can finish. Debian and
+# Ubuntu ship the venv module but split ensurepip into a separate package, so a
+# stock server passes every check above and then dies partway through the
+# install with a pip traceback, having already written files. Check it here,
+# before anything is created, and say exactly what to run.
+if ! python3 -c 'import ensurepip, venv' >/dev/null 2>&1; then
+  pyver=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null)
+  if command -v apt-get >/dev/null 2>&1; then
+    die "python3 -m venv cannot complete here: the ensurepip module is missing.
+  Debian and Ubuntu ship it separately. Install it, then run this again:
+
+      sudo apt-get install -y python${pyver}-venv
+
+  If that exact version is unavailable, python3-venv pulls in the right one."
+  fi
+  die "python3 -m venv cannot complete here: the ensurepip module is missing.
+  Install your distribution's Python venv package, then run this again."
+fi
+
 command -v systemctl >/dev/null 2>&1 || die "This installer expects systemd."
 
 WORK=$(mktemp -d)
