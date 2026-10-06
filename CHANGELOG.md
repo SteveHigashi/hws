@@ -5,6 +5,40 @@ Format: version · date · what changed · why it matters.
 
 ---
 
+## v0.2.9 — 2026-10-06
+
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.9/> with a
+one-line installer. Requirements are unchanged: Python 3.9+ and systemd.
+
+**Upgrade if you are on any earlier version.** Crawler verification was not working
+in the running application, and this restores it.
+
+- **Application startup no longer blanks out crawler verification.** `main.py` loads
+  a Live-supplied crawler range file at startup if one is present, and it did so on
+  nothing more than that file existing. A one-family test fixture,
+  `{"fam": ["1.2.3.0/24"]}`, had been committed since the September baseline and
+  shipped in every release tarball, so every install booted with its twelve real
+  crawler families replaced by one fake one and every crawler read `unverified`
+  regardless of where it came from.
+
+  It went unnoticed because the command-line log importer runs in its own process
+  and never executes `main.py`, so imported rows carried correct verdicts and the
+  dashboard looked right. Only traffic classified inside the running application,
+  which is the live tracker beacon, was affected.
+
+  The file is no longer in the repository and is excluded from the release tarball,
+  because a Live-fetched range file is per-install state like a database or a
+  settings file. The loader now accepts one only when it actually carries families
+  the verifier has rules for, judged against those rules rather than a hardcoded
+  list, so a truncated or malformed Live response can no longer disable verification
+  either.
+
+  `tests/test_startup_keeps_crawler_ranges.py` drives the startup hook itself rather
+  than checking the classifier in isolation, which is what earlier testing did and
+  is why it passed while the application was broken.
+
+---
+
 ## v0.2.8 — 2026-10-06
 
 Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.8/> with a

@@ -94,10 +94,33 @@ async def refresh_crawlers(live_url: str, live_key: str, current_version: int) -
     return {"updated": True, "version": version}
 
 
+def live_ranges_are_usable(path: Path) -> bool:
+    """Whether a Live ranges file is worth swapping the bundled list for.
+
+    Existence is not enough. This hook runs at startup and replaces the whole
+    prefix index, so a file that is truncated, malformed, or carries families
+    the verifier has no rule for would silently disable crawler verification
+    across the install. It is checked against the verifier's own rules rather
+    than a hardcoded list, so a family added to bot.py is accepted here without
+    a second edit.
+    """
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, ValueError, TypeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    known = {group for rule in bot_service._NETWORK_RULES.values() for group in rule["groups"]}
+    return any(
+        family in known and isinstance(prefixes, list) and prefixes
+        for family, prefixes in payload.items()
+    )
+
+
 def load_local_live_ranges() -> bool:
-    """Point bot.py at a previously-fetched Live ranges file, if one exists.
+    """Point bot.py at a previously-fetched Live ranges file, if one is usable.
     Local-disk only — makes no outbound request. Meant for app startup."""
-    if _LIVE_RANGES_FILE.exists():
+    if _LIVE_RANGES_FILE.exists() and live_ranges_are_usable(_LIVE_RANGES_FILE):
         bot_service.reload_crawler_ranges(str(_LIVE_RANGES_FILE))
         return True
     return False

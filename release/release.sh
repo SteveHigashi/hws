@@ -62,6 +62,7 @@ tar -C "$ROOT" -cf - \
   --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv' \
   --exclude='*.db' --exclude='*.db-wal' --exclude='*.db-shm' \
   --exclude='settings.env' --exclude='.env' --exclude='.env.*' \
+  --exclude='crawler_ranges.live.json' \
   --exclude='*.bak_*' --exclude='*.bak' --exclude='*.orig' \
   --exclude='tests' --exclude='test_*.py' --exclude='conftest.py' \
   --exclude='.pytest_cache' --exclude='dist' --exclude='build' --exclude='*.spec' \
