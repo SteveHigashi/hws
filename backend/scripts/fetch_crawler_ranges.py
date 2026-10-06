@@ -6,6 +6,7 @@ when an operator invokes or schedules it and sends no host or traffic data.
 Set HIGASHI_CRAWLER_RANGE_FETCH=0 to disable it explicitly.
 """
 
+import datetime
 import ipaddress
 import json
 import os
@@ -14,6 +15,8 @@ import sys
 import tempfile
 import urllib.request
 
+
+METADATA_KEY = "_meta"
 
 FEEDS = {
     "googlebot": ["https://developers.google.com/static/search/apis/ipranges/googlebot.json"],
@@ -60,6 +63,12 @@ def main() -> int:
         previous = json.loads(destination.read_text())
     except (OSError, ValueError):
         previous = {}
+    # METADATA_KEY is provenance, not a crawler family. Strip it before the
+    # last-known-good carry-forward below so it cannot be mistaken for prefixes.
+    if isinstance(previous, dict):
+        previous = {k: v for k, v in previous.items() if k != METADATA_KEY}
+    else:
+        previous = {}
 
     refreshed: dict[str, list[str]] = {}
     for family, urls in FEEDS.items():
@@ -94,8 +103,17 @@ def main() -> int:
     destination.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=".crawler-ranges.", dir=destination.parent)
     try:
+        # Stamp when this data was fetched. The verifier needs to know whether the
+        # ranges are current enough to justify calling a mismatch forged, and the
+        # file's mtime does not survive packaging, copying or a git checkout.
+        payload = dict(refreshed)
+        payload[METADATA_KEY] = {
+            "generated_at": datetime.datetime.now(datetime.timezone.utc)
+            .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+            "generator": "fetch_crawler_ranges",
+        }
         with os.fdopen(handle, "w") as stream:
-            json.dump(refreshed, stream, indent=1, sort_keys=True)
+            json.dump(payload, stream, indent=1, sort_keys=True)
         os.replace(temporary, destination)
     finally:
         if os.path.exists(temporary):

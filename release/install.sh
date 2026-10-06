@@ -171,6 +171,50 @@ systemctl daemon-reload
 systemctl enable $SERVICE >/dev/null 2>&1 || true
 systemctl restart $SERVICE
 
+# Published crawler ranges go out of date. HWS calls an address outside a
+# vendor's published range a forged identity claim, which is only fair while the
+# ranges are current, so it stops making that claim once the file ages past its
+# threshold. Without a refresh every install would quietly lose forgery
+# detection a fortnight in, so schedule the refresh the installer already ships.
+# This is the one component that makes outbound requests, and it sends no host
+# or traffic data. Set HIGASHI_CRAWLER_RANGE_FETCH=0 in the settings file to
+# turn it off; the verifier then reports unverified rather than forged.
+info "weekly crawler-range refresh..."
+cat > /etc/systemd/system/$SERVICE-refresh-crawlers.service <<UNITEOF
+[Unit]
+Description=HWS crawler range refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=$DIR/backend
+Environment=HIGASHI_ENV_PATH=$SETTINGS
+EnvironmentFile=$SETTINGS
+ExecStart=$DIR/.venv/bin/python scripts/fetch_crawler_ranges.py
+NoNewPrivileges=yes
+PrivateTmp=yes
+StandardOutput=journal
+StandardError=journal
+UNITEOF
+cat > /etc/systemd/system/$SERVICE-refresh-crawlers.timer <<UNITEOF
+[Unit]
+Description=Refresh HWS crawler ranges weekly
+
+[Timer]
+OnCalendar=Tue *-*-* 03:30:00
+RandomizedDelaySec=3600
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNITEOF
+systemctl daemon-reload
+systemctl enable --now $SERVICE-refresh-crawlers.timer >/dev/null 2>&1 || true
+# Run it once now so the bundled snapshot is replaced by current data, and is
+# stamped, rather than waiting up to a week for the first scheduled run.
+systemctl start $SERVICE-refresh-crawlers.service >/dev/null 2>&1 || true
+
 # It binds to 127.0.0.1, so nginx is how anybody reaches it.
 if [ "$SKIP_NGINX" = 1 ]; then
   info "Leaving the web server alone (HWS_SKIP_NGINX=1). HWS listens on 127.0.0.1:$PORT."

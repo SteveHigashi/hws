@@ -5,6 +5,7 @@ import math
 import os
 from pathlib import Path
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 # Known AI and web crawlers with metadata for analytics
@@ -143,21 +144,92 @@ class _PrefixIndex:
         return False
 
 
-def _read_ranges(path: Path) -> dict[str, list[str]]:
+# How old published ranges may get before they stop counting as evidence at all.
+# The refresh timer runs weekly, so the default tolerates two consecutive
+# failures before verdicts soften: long enough not to flap on a transient
+# outage, short enough that genuinely abandoned data stops deciding anything.
+#
+# Zero or less means NO range data is ever fresh, which disables prefix-based
+# verdicts entirely and leaves every claim unverified unless FCrDNS proves it.
+# It is deliberately not a switch for trusting the bundled file forever: that
+# reading would turn the safest-looking value into the least safe behaviour.
+# An operator with no outbound access who genuinely wants to keep standing
+# behind a frozen snapshot has to say so in days, explicitly and visibly.
+#
+# An unparseable value falls back to the default rather than to either extreme.
+_DEFAULT_RANGE_MAX_AGE_DAYS = 14
+try:
+    RANGE_MAX_AGE_DAYS = int(
+        os.getenv("HIGASHI_CRAWLER_RANGE_MAX_AGE_DAYS", str(_DEFAULT_RANGE_MAX_AGE_DAYS))
+    )
+except (TypeError, ValueError):
+    RANGE_MAX_AGE_DAYS = _DEFAULT_RANGE_MAX_AGE_DAYS
+
+_METADATA_KEY = "_meta"
+
+
+def _read_ranges(path: Path) -> tuple[dict[str, list[str]], Optional[datetime]]:
+    """Return the crawler families and when the file was generated.
+
+    The generation time is read from the file's own metadata rather than its
+    mtime, because mtime is rewritten by packaging, copying and git checkout and
+    so says when the file arrived rather than when the data was true. mtime is
+    used only as a fallback for files written before stamping existed.
+    """
     try:
         payload = json.loads(path.read_text())
     except (OSError, ValueError, TypeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+        return {}, None
+    if not isinstance(payload, dict):
+        return {}, None
+
+    generated_at = None
+    meta = payload.get(_METADATA_KEY)
+    if isinstance(meta, dict) and isinstance(meta.get("generated_at"), str):
+        stamp = meta["generated_at"].strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(stamp)
+            generated_at = parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            generated_at = None
+    if generated_at is None:
+        try:
+            generated_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        except OSError:
+            generated_at = None
+
+    families = {k: v for k, v in payload.items() if k != _METADATA_KEY}
+    return families, generated_at
 
 
-_PREFIX_INDEX = _PrefixIndex(_read_ranges(_RANGE_FILE))
+def _ranges_are_fresh(generated_at: Optional[datetime]) -> bool:
+    """Whether the ranges are current enough to decide anything.
+
+    Governs both directions: a file too old to accuse with is also too old to
+    authenticate with, because a released prefix can be reallocated.
+    """
+    if RANGE_MAX_AGE_DAYS <= 0:
+        # Age-based trust switched off: nothing is ever fresh.
+        return False
+    if generated_at is None:
+        # No provenance means freshness cannot be shown, and an unprovable claim
+        # must not become an accusation.
+        return False
+    age = datetime.now(timezone.utc) - generated_at
+    return age <= timedelta(days=RANGE_MAX_AGE_DAYS)
+
+
+_RANGE_DATA, _RANGE_GENERATED_AT = _read_ranges(_RANGE_FILE)
+_PREFIX_INDEX = _PrefixIndex(_RANGE_DATA)
 
 
 def reload_crawler_ranges(path: Optional[str] = None) -> None:
     """Reload a last-known-good range file, mainly for the scheduled refresher."""
     global _PREFIX_INDEX
-    _PREFIX_INDEX = _PrefixIndex(_read_ranges(Path(path) if path else _RANGE_FILE))
+    global _RANGE_GENERATED_AT
+    data, generated_at = _read_ranges(Path(path) if path else _RANGE_FILE)
+    _PREFIX_INDEX = _PrefixIndex(data)
+    _RANGE_GENERATED_AT = generated_at
 
 
 def _verification_for(
@@ -178,14 +250,26 @@ def _verification_for(
         return "unverified", None
 
     groups = rule["groups"]
-    range_data_available = any(_PREFIX_INDEX.has_family(group) for group in groups)
-    if groups and _PREFIX_INDEX.contains(address, groups):
+    # Published prefixes are usable as evidence only while they are current.
+    # Staleness cuts both ways: an operator that ADDS egress makes a stale file
+    # accuse legitimate traffic, and an operator that RELEASES a prefix makes a
+    # stale file authenticate whoever was allocated it next. The second is the
+    # quieter failure, since a forged crawler collects a verified badge instead
+    # of a red banner, so an aged file is not allowed to decide either way.
+    ranges_usable = _ranges_are_fresh(_RANGE_GENERATED_AT)
+    range_data_available = ranges_usable and any(
+        _PREFIX_INDEX.has_family(group) for group in groups
+    )
+    if ranges_usable and groups and _PREFIX_INDEX.contains(address, groups):
         return "verified", "published_prefix"
 
     suffixes = rule["suffixes"]
     if suffixes and fcrdns_lookup is not None:
         # FCrDNS is accepted as fallback evidence, but core never starts a DNS
         # request: the no-outbound guarantee is stricter than convenience.
+        # This path is deliberately NOT gated on the range file's age. It is a
+        # live lookup against the operator's own DNS, so it does not go stale
+        # the way a cached prefix list does.
         # A deployment that already has locally resolved, forward-confirmed
         # evidence may inject this pure lookup during an offline import.
         hostname = fcrdns_lookup(str(address))
@@ -197,9 +281,10 @@ def _verification_for(
         if fcrdns_ok:
             return "verified", "fcrdns"
 
-    # A valid address outside an available vendor feed, with no independently
-    # supplied FCrDNS proof, is a forged claim. Without an authoritative set,
-    # failed or absent DNS evidence leaves the claim unverified.
+    # A valid address outside a CURRENT vendor feed, with no independently
+    # supplied FCrDNS proof, is a forged claim. Without an authoritative set, or
+    # with one too old to stand behind, failed or absent DNS evidence leaves the
+    # claim unverified. range_data_available is already false for stale ranges.
     if range_data_available:
         return "forged", "prefix_mismatch"
     return "unverified", None
