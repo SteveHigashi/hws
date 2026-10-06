@@ -5,6 +5,54 @@ Format: version · date · what changed · why it matters.
 
 ---
 
+## v0.2.6 — 2026-10-06
+
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.6/> with a
+one-line installer. Requirements are unchanged: Python 3.9+ and systemd, frontend
+shipped built, SQLite.
+
+**If you are upgrading, read this.** Crawler identity verdicts now depend on how
+fresh your published-range data is. An install whose ranges are already older than
+the threshold will see `forged` counts fall to zero and verified crawler visits
+drop to zero until a refresh succeeds, at which point both return. That is the
+correction working, not the feature breaking. This release schedules the refresh
+automatically and runs it once during installation, so a normal upgrade resolves
+it within minutes.
+
+- **Stale crawler ranges no longer decide crawler identity.** HWS judges crawlers
+  against the IP ranges their operators publish: inside the range is `verified`,
+  outside it is `forged`, which the dashboard reports as identity forgery. Both
+  verdicts are only sound while the ranges are current, and nothing kept them
+  current. The installer scheduled no refresh, so a self-hosted install ran
+  forever on whatever snapshot shipped in its tarball. Staleness cuts both ways:
+  an operator that adds egress makes an old file accuse legitimate Googlebot,
+  Bingbot or PerplexityBot traffic of impersonation, and an operator that releases
+  a prefix makes an old file authenticate whoever is allocated it next, which is
+  the quieter failure because a forged crawler collects a verified badge instead
+  of a red banner. Past `HIGASHI_CRAWLER_RANGE_MAX_AGE_DAYS`, default 14, prefix
+  matching now produces no verdict in either direction and claims read
+  **`unverified`** until a refresh succeeds. Reverse-DNS verification is
+  deliberately exempt, because it is a live lookup rather than cached data.
+- **The refresh is now scheduled.** A weekly systemd timer, Tuesday 03:30 with a
+  randomised hour and `Persistent=true` so a machine that was switched off still
+  catches up, plus one run during installation so the bundled snapshot is replaced
+  by current data immediately. It is the only component that makes outbound
+  requests and it sends no host or traffic data. Set
+  `HIGASHI_CRAWLER_RANGE_FETCH=0` to disable it; verdicts then settle at
+  `unverified` once the shipped data ages out.
+- **The range file records when it was fetched.** The verifier reads that stamp
+  rather than the file's modification time, which records when the file arrived
+  rather than when the data was true and is rewritten by packaging, copying and
+  checkout. A file whose age cannot be established is treated as stale.
+- `HIGASHI_CRAWLER_RANGE_MAX_AGE_DAYS=0` disables prefix-based verdicts entirely
+  rather than granting indefinite trust in a frozen file. An operator with no
+  outbound access who wants to keep standing behind a bundled snapshot sets an
+  explicit number of days instead.
+- A failed refresh keeps the previous ranges rather than replacing them with a
+  short or empty answer, and the file is written atomically.
+
+---
+
 ## v0.2.5 — 2026-10-06
 
 Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.5/> with a
