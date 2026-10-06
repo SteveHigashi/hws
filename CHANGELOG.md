@@ -7,8 +7,9 @@ Format: version · date · what changed · why it matters.
 
 ## v0.2.5 — 2026-10-06
 
-Cut with `./release/release.sh 0.2.5`. Requirements are unchanged: Python 3.9+ and
-systemd, frontend shipped built, SQLite.
+Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.5/> with a
+one-line installer. Requirements are unchanged: Python 3.9+ and systemd, frontend
+shipped built, SQLite.
 
 - **The AI Crawlers page no longer blanks itself.** The "Crawler identity forgery
   detected" panel sat inside `MagnetismBar`, a presentational component whose only
