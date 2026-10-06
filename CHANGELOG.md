@@ -49,7 +49,16 @@ it within minutes.
   outbound access who wants to keep standing behind a bundled snapshot sets an
   explicit number of days instead.
 - A failed refresh keeps the previous ranges rather than replacing them with a
-  short or empty answer, and the file is written atomically.
+  short or empty answer, and the file is written atomically. It also leaves the
+  freshness stamp alone: the stamp advances only when every family was actually
+  refreshed from its feed, so a machine that has lost outbound access ages
+  honestly into `unverified` instead of looking permanently current while serving
+  data that never changes. The families that were carried forward are named in
+  the journal.
+
+Verified on a clean Ubuntu 24.04 box: the timer installs enabled and scheduled,
+the refresh runs once during installation, a manual run advances the stamp, and a
+run with outbound access cut preserves both the ranges and the stamp.
 
 ---
 
