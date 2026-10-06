@@ -163,23 +163,33 @@ class CrawlerRangeFreshnessTests(unittest.TestCase):
             self.assertFalse(bot_module._PREFIX_INDEX.has_family("_meta"))
 
 
+def _load_fetcher():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "hws_fetch_ranges", BACKEND / "scripts" / "fetch_crawler_ranges.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 class RefreshFailureTests(unittest.TestCase):
     """A failed refresh must leave the last known-good ranges in place."""
 
     def test_a_feed_returning_nothing_keeps_the_previous_prefixes(self):
-        sys.path.insert(0, str(BACKEND / "scripts"))
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "hws_fetch_ranges", BACKEND / "scripts" / "fetch_crawler_ranges.py")
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = _load_fetcher()
 
         with tempfile.TemporaryDirectory() as d:
             dest = Path(d) / "crawler_ranges.json"
-            dest.write_text(json.dumps({
-                "googlebot": ["66.249.70.0/24", "66.249.71.0/24"],
-                "bingbot": ["13.66.139.0/24"],
-            }))
+            # Enough prefixes per family to clear MINIMUMS on carry-forward.
+            # With too few, the fetcher refuses to write at all and the stamp is
+            # never reached, which is how an earlier version of this test passed
+            # against the very bug it was meant to catch. A real install has
+            # thousands of prefixes and does reach the write.
+            previous = {family: [f"10.{n}.0.0/16" for n in range(count + 5)]
+                        for family, count in mod.MINIMUMS.items()}
+            previous["duckassistbot"] = ["10.200.0.0/16"]
+            previous["_meta"] = {"generated_at": "2020-01-01T00:00:00Z"}
+            dest.write_text(json.dumps(previous))
             import os
             os.environ["HIGASHI_CRAWLER_RANGES"] = str(dest)
             self.addCleanup(os.environ.pop, "HIGASHI_CRAWLER_RANGES", None)
@@ -191,14 +201,51 @@ class RefreshFailureTests(unittest.TestCase):
             mod.urllib.request.urlopen = explode
             self.addCleanup(setattr, mod.urllib.request, "urlopen", original)
 
-            mod.main() if hasattr(mod, "main") else mod.refresh()
+            mod.main()
 
             after = json.loads(dest.read_text())
+            for family in mod.MINIMUMS:
+                self.assertEqual(
+                    after.get(family), previous[family],
+                    f"a total refresh failure damaged last-known-good {family}",
+                )
             self.assertEqual(
-                after.get("googlebot"), ["66.249.70.0/24", "66.249.71.0/24"],
-                "a total refresh failure overwrote the last known-good ranges",
+                after.get("_meta", {}).get("generated_at"), "2020-01-01T00:00:00Z",
+                "a failed refresh advanced the freshness stamp, which would make a "
+                "box that has lost outbound access look permanently fresh while "
+                "serving data that never changes",
             )
-            self.assertEqual(after.get("bingbot"), ["13.66.139.0/24"])
+
+    def test_a_successful_refresh_does_advance_the_stamp(self):
+        mod = _load_fetcher()
+        with tempfile.TemporaryDirectory() as d:
+            dest = Path(d) / "crawler_ranges.json"
+            dest.write_text(json.dumps({
+                "googlebot": ["66.249.70.0/24"],
+                "_meta": {"generated_at": "2020-01-01T00:00:00Z"},
+            }))
+            import os
+            os.environ["HIGASHI_CRAWLER_RANGES"] = str(dest)
+            self.addCleanup(os.environ.pop, "HIGASHI_CRAWLER_RANGES", None)
+
+            # Every configured feed answers with a usable prefix.
+            class _Resp:
+                def __enter__(self): return self
+                def __exit__(self, *a): return False
+                def read(self):
+                    return json.dumps({"prefixes": [
+                        {"ipv4Prefix": f"10.{n}.0.0/16"} for n in range(60)
+                    ]}).encode()
+            original = mod.urllib.request.urlopen
+            mod.urllib.request.urlopen = lambda *a, **k: _Resp()
+            self.addCleanup(setattr, mod.urllib.request, "urlopen", original)
+
+            mod.main()
+            after = json.loads(dest.read_text())
+            self.assertNotEqual(
+                after.get("_meta", {}).get("generated_at"), "2020-01-01T00:00:00Z",
+                "a fully successful refresh must advance the stamp",
+            )
 
 
 if __name__ == "__main__":

@@ -66,11 +66,14 @@ def main() -> int:
     # METADATA_KEY is provenance, not a crawler family. Strip it before the
     # last-known-good carry-forward below so it cannot be mistaken for prefixes.
     if isinstance(previous, dict):
+        previous_stamp = previous.get(METADATA_KEY)
         previous = {k: v for k, v in previous.items() if k != METADATA_KEY}
     else:
+        previous_stamp = None
         previous = {}
 
     refreshed: dict[str, list[str]] = {}
+    carried_forward: list[str] = []
     for family, urls in FEEDS.items():
         values: list[str] = []
         for url in urls:
@@ -90,6 +93,9 @@ def main() -> int:
             refreshed[family] = sorted(set(clean))
         elif family in previous:
             refreshed[family] = previous[family]
+            carried_forward.append(family)
+        else:
+            carried_forward.append(family)
 
     failures = [
         f"{family}: {len(refreshed.get(family, []))} < {minimum}"
@@ -103,15 +109,32 @@ def main() -> int:
     destination.parent.mkdir(parents=True, exist_ok=True)
     handle, temporary = tempfile.mkstemp(prefix=".crawler-ranges.", dir=destination.parent)
     try:
-        # Stamp when this data was fetched. The verifier needs to know whether the
-        # ranges are current enough to justify calling a mismatch forged, and the
-        # file's mtime does not survive packaging, copying or a git checkout.
+        # Stamp when this data was last actually CONFIRMED current. The verifier
+        # uses it to decide whether the ranges can still justify a verdict, and
+        # the file's mtime does not survive packaging, copying or a checkout.
+        #
+        # The stamp only advances when every family was refreshed from its feed.
+        # A run where any family had to fall back to the previous data has not
+        # confirmed that family, and advancing anyway would make a box that has
+        # lost outbound access look permanently fresh while serving data that
+        # never changes, which is precisely the state the freshness check exists
+        # to catch. Keeping the old stamp lets the data age honestly instead.
         payload = dict(refreshed)
-        payload[METADATA_KEY] = {
-            "generated_at": datetime.datetime.now(datetime.timezone.utc)
-            .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-            "generator": "fetch_crawler_ranges",
-        }
+        previous_meta = previous_stamp if isinstance(previous_stamp, dict) else {}
+        if carried_forward:
+            print(
+                "not advancing the freshness stamp; carried forward: "
+                + ", ".join(sorted(carried_forward)),
+                file=sys.stderr,
+            )
+            if previous_meta.get("generated_at"):
+                payload[METADATA_KEY] = previous_meta
+        else:
+            payload[METADATA_KEY] = {
+                "generated_at": datetime.datetime.now(datetime.timezone.utc)
+                .replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                "generator": "fetch_crawler_ranges",
+            }
         with os.fdopen(handle, "w") as stream:
             json.dump(payload, stream, indent=1, sort_keys=True)
         os.replace(temporary, destination)
