@@ -68,16 +68,6 @@ function MagnetismBar({ score }) {
       <div className="flex-1 bg-surface-700 rounded-full h-1.5 max-w-[80px]">
         <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${score}%` }} />
       </div>
-
-      {(overview?.crawler_verification?.forged ?? 0) > 0 && (
-        <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-5">
-          <p className="text-sm font-semibold text-red-300">Crawler identity forgery detected</p>
-          <p className="text-xs text-red-200/70 mt-1 leading-relaxed">
-            {overview.crawler_verification.forged.toLocaleString()} request{overview.crawler_verification.forged === 1 ? "" : "s"} claimed
-            a published crawler identity from outside that operator's network. Treat these as impersonation, not crawler traffic.
-          </p>
-        </div>
-      )}
       <span className="text-xs text-slate-400 font-mono w-8 text-right">{score}</span>
     </div>
   );
@@ -169,6 +159,22 @@ export default function AICrawlers() {
           sub="of all traffic is verified AI crawling"
         />
       </div>
+
+      {/* Identity forgery warning. This block used to sit inside MagnetismBar, a
+          presentational bar that receives only `score`, so it referenced `overview`
+          from outside its scope. Every render threw ReferenceError and white-screened
+          the page, but only once `pages` had a row, which needs verified AI-crawler
+          page data, so an install with none never hit it. It belongs here, where
+          `overview` is in scope. */}
+      {(overview?.crawler_verification?.forged ?? 0) > 0 && (
+        <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-5">
+          <p className="text-sm font-semibold text-red-300">Crawler identity forgery detected</p>
+          <p className="text-xs text-red-200/70 mt-1 leading-relaxed">
+            {overview.crawler_verification.forged.toLocaleString()} request{overview.crawler_verification.forged === 1 ? "" : "s"} claimed
+            a published crawler identity from outside that operator's network. Treat these as impersonation, not crawler traffic.
+          </p>
+        </div>
+      )}
 
       {/* Explainer row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 text-xs text-slate-500">
