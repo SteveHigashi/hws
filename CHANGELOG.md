@@ -5,6 +5,30 @@ Format: version · date · what changed · why it matters.
 
 ---
 
+## v0.2.5 — 2026-10-06
+
+Cut with `./release/release.sh 0.2.5`. Requirements are unchanged: Python 3.9+ and
+systemd, frontend shipped built, SQLite.
+
+- **The AI Crawlers page no longer blanks itself.** The "Crawler identity forgery
+  detected" panel sat inside `MagnetismBar`, a presentational component whose only
+  prop is `score`. It referenced `overview`, which is state in the `AICrawlers`
+  component further down the file, so the first render threw
+  `ReferenceError: overview is not defined` and React unmounted the entire page.
+  The panel is moved to where `overview` is in scope; its markup, copy and condition
+  are untouched. Two consequences worth stating plainly. The forgery warning had
+  never once displayed, because the only copy of it was the one that crashed. And
+  the page blanked only for installs that had verified AI-crawler page data, since
+  `MagnetismBar` renders one row per entry of Top Verified Crawled Pages and that
+  list is empty otherwise; before 0.2.4 the CLI importer never wrote
+  `verification_state`, so nothing ever verified, the list was always empty and the
+  crash stayed hidden. Fixing the importer in 0.2.4 is what exposed it.
+  `tests/test_aicrawlers_scope.py` fails if that component reaches for state it does
+  not own again, and checks the panel still exists so a later fix cannot delete the
+  feature instead of placing it.
+
+---
+
 ## v0.2.4 — 2026-10-05
 
 Released as a signed tarball at <https://hws.jotnotes.com/releases/0.2.4/> with a
